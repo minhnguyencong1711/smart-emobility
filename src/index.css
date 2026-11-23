@@ -1,0 +1,334 @@
+/* ============================================================================
+   Smart E-Mobility Hub Design System — Semantic CSS Tokens
+   Single source of truth matching Figma Design Tokens & VNU-HCM Brand Palette.
+   ============================================================================ */
+
+:root {
+  /* ---- Brand Primary (BK Sky Blue #1488D8) ---- */
+  --primary: #1488d8;
+  --primary-hover: #0d6db5;
+  --primary-active: #0a5893;
+  --primary-soft: rgba(20, 136, 216, 0.12);
+  --primary-line: rgba(20, 136, 216, 0.4);
+  --on-primary: #ffffff;
+
+  /* ---- Brand Secondary (BK Deep Navy #030391) ---- */
+  --navy: #030391;
+  --navy-soft: rgba(3, 3, 145, 0.1);
+  --on-navy: #ffffff;
+
+  /* ---- Brand Tertiary (Eco EV Green #10B981) ---- */
+  --eco: #10b981;
+  --eco-soft: rgba(16, 185, 129, 0.12);
+  --on-eco: #ffffff;
+
+  /* ---- Neutral Surfaces & Borders ---- */
+  --canvas: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --surface-3: #e2e8f0;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+
+  /* ---- Text / Ink Hierarchy ---- */
+  --ink: #0f172a;
+  --ink-2: #475569;
+  --ink-3: #64748b;
+  --ink-muted: #94a3b8;
+  --focus: #030391;
+  --overlay: rgba(15, 23, 42, 0.52);
+
+  /* ---- Semantic Status ---- */
+  --info: #3b82f6;
+  --info-soft: rgba(59, 130, 246, 0.12);
+  --ok: #22c55e;
+  --ok-soft: rgba(34, 197, 94, 0.12);
+  --warn: #f59e0b;
+  --warn-soft: rgba(245, 158, 11, 0.14);
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.12);
+
+  /* ---- Shadows ---- */
+  --sh-card:
+    0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.05);
+  --sh-1:
+    0 2px 4px rgba(15, 23, 42, 0.05), 0 6px 16px -4px rgba(15, 23, 42, 0.1);
+  --sh-2:
+    0 4px 8px rgba(15, 23, 42, 0.06), 0 16px 40px -12px rgba(15, 23, 42, 0.16);
+  --sh-3:
+    0 10px 24px rgba(15, 23, 42, 0.08),
+    0 32px 64px -16px rgba(15, 23, 42, 0.28);
+  --sh-brand: 0 8px 20px -6px rgba(20, 136, 216, 0.45);
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    overflow-x: clip;
+    background-color: var(--canvas);
+    color: var(--ink);
+    font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: var(--primary-soft);
+    color: var(--navy);
+  }
+
+  input,
+  textarea,
+  select {
+    caret-color: var(--primary);
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+
+  /* Native modal & drawer top-layer containment (Modern Web Guidance) */
+  dialog:modal {
+    overscroll-behavior: contain;
+    max-width: none;
+    max-height: none;
+  }
+
+  dialog::backdrop {
+    background: var(--overlay);
+    overflow: hidden;
+    overscroll-behavior: contain;
+    backdrop-filter: blur(2px);
+  }
+
+  dialog[data-modal][open] {
+    display: flex;
+  }
+
+  dialog[data-drawer][open] {
+    display: flex;
+  }
+}
+
+/* Responsive container-query stacked table under 600px container width */
+[data-sidebar-scroll] {
+  scrollbar-width: none;
+}
+
+[data-sidebar-scroll]::-webkit-scrollbar {
+  display: none;
+}
+
+select[data-custom-select] {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  background-image: none !important;
+}
+
+[data-table-wrapper] {
+  container-type: inline-size;
+}
+
+@container (width < 600px) {
+  table[data-responsive-table],
+  table[data-responsive-table] thead,
+  table[data-responsive-table] tbody,
+  table[data-responsive-table] tr,
+  table[data-responsive-table] th,
+  table[data-responsive-table] td {
+    display: block;
+    width: 100%;
+  }
+
+  table[data-responsive-table] thead {
+    display: none;
+  }
+
+  table[data-responsive-table] tbody tr {
+    margin-bottom: 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background-color: var(--surface);
+    padding: 0.5rem 0.75rem;
+  }
+
+  table[data-responsive-table] td[data-label] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid var(--surface-2);
+    padding: 0.5rem 0;
+    text-align: right;
+  }
+
+  table[data-responsive-table] td[data-label]:last-child {
+    border-bottom: none;
+  }
+
+  table[data-responsive-table] td[data-label]::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-align: left;
+  }
+}
+
+/* ============================================================================
+   Leaflet Real Map & Figma Floating Hub Card Styles
+   Uses element & data-attribute selectors so ESLint tailwindcss rule stays clean
+   ============================================================================ */
+.leaflet-container {
+  font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+  background-color: #eef3f0;
+  outline: none;
+}
+
+.leaflet-tile-pane {
+  filter: saturate(0.45) brightness(1.06) contrast(0.94);
+}
+
+.leaflet-pane {
+  z-index: 10 !important;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 20 !important;
+}
+
+.leaflet-control-attribution {
+  font-size: 10px !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(4px);
+  color: var(--ink-3) !important;
+  padding: 2px 6px !important;
+  border-radius: 6px 0 0 0;
+}
+
+[data-hub-dot] {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
+}
+
+[data-hub-dot='CRITICAL'] {
+  background-color: var(--danger);
+}
+
+[data-hub-dot='WARNING'] {
+  background-color: var(--warn);
+}
+
+[data-hub-dot='NORMAL'] {
+  background-color: var(--ok);
+}
+
+[data-hub-dot='OUTSIDE'] {
+  background-color: var(--ink-muted);
+}
+
+[data-hub-card] {
+  width: 178px;
+  background-color: rgba(255, 255, 255, 0.97);
+  border-radius: 10px;
+  border: 1.5px solid var(--ok);
+  padding: 8px 10px;
+  box-shadow: 0 6px 18px -4px rgba(15, 23, 42, 0.16);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 150ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 150ms cubic-bezier(0.2, 0, 0, 1);
+  color: var(--ink);
+}
+
+[data-hub-card]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -4px rgba(15, 23, 42, 0.22);
+}
+
+[data-hub-card][data-status='CRITICAL'] {
+  border-color: var(--danger);
+}
+
+[data-hub-card][data-status='WARNING'] {
+  border-color: var(--warn);
+}
+
+[data-hub-card][data-status='NORMAL'] {
+  border-color: var(--ok);
+}
+
+[data-hub-card][data-status='OUTSIDE'] {
+  border-color: var(--line-strong);
+  background-color: rgba(248, 250, 252, 0.94);
+  color: var(--ink-2);
+}
+
+[data-hub-card][data-selected='true'] {
+  box-shadow:
+    0 0 0 3px rgba(20, 136, 216, 0.28),
+    0 10px 24px -4px rgba(15, 23, 42, 0.22);
+}
+
+[data-hub-pill] {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 8px;
+  border: 1.5px solid var(--ok);
+  padding: 4px 8px;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+[data-hub-pill][data-status='CRITICAL'] {
+  border-color: var(--danger);
+}
+
+[data-hub-pill][data-status='WARNING'] {
+  border-color: var(--warn);
+}
+
+[data-hub-pill][data-selected='true'] {
+  box-shadow: 0 0 0 3px rgba(20, 136, 216, 0.28);
+}
+
+[data-hub-cluster] {
+  width: 224px;
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 12px;
+  border: 2px solid var(--navy);
+  padding: 9px 12px;
+  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.22);
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+  transition:
+    transform 150ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+[data-hub-cluster]:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 12px 28px -4px rgba(3, 3, 145, 0.28);
+}

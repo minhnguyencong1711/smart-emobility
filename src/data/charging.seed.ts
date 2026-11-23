@@ -1,0 +1,168 @@
+import type {
+  ActiveParkingAndCharging,
+  ChargingPoint,
+  ChargingQueueEntry,
+  DlbLogEntry,
+} from '@/types';
+
+export const INITIAL_CHARGING_POINTS: ChargingPoint[] = [
+  {
+    id: 'cp-b04',
+    code: 'CP-B04',
+    hubId: 'hub-dorm-a',
+    connectorType: 'TYPE_2',
+    maxPowerKw: 22,
+    currentPowerKw: 0,
+    status: 'FAULTY',
+    earthLeakageMa: 38.4,
+  },
+  {
+    id: 'cp-a01',
+    code: 'CP-A01',
+    hubId: 'hub-suoi-tien',
+    connectorType: 'TYPE_2',
+    maxPowerKw: 22,
+    currentPowerKw: 11,
+    status: 'AVAILABLE',
+    earthLeakageMa: 2.1,
+  },
+  {
+    id: 'cp-a02',
+    code: 'CP-A02',
+    hubId: 'hub-suoi-tien',
+    connectorType: 'DC_FAST',
+    maxPowerKw: 50,
+    currentPowerKw: 44,
+    status: 'CHARGING',
+    earthLeakageMa: 1.8,
+  },
+  {
+    id: 'cp-b01',
+    code: 'CP-B01',
+    hubId: 'hub-dorm-a',
+    connectorType: 'TYPE_2',
+    maxPowerKw: 22,
+    currentPowerKw: 14,
+    status: 'THROTTLED',
+    earthLeakageMa: 3.4,
+  },
+  {
+    id: 'cp-bk02',
+    code: 'CP-BK02',
+    hubId: 'hub-hcmut-2',
+    connectorType: 'E_BIKE_AC',
+    maxPowerKw: 7.4,
+    currentPowerKw: 0,
+    status: 'AVAILABLE',
+    earthLeakageMa: 1.2,
+  },
+];
+
+export const INITIAL_CHARGING_QUEUE: ChargingQueueEntry[] = [
+  {
+    id: 'cq-1',
+    plateNumber: '59A-45907',
+    tier: 2,
+    tierLabel: 'Tier 2 (Upcoming Booked EV)',
+    hubId: 'hub-dorm-a',
+    socPercent: 15,
+    status: 'RESERVED',
+    allocatedKw: 11,
+  },
+  {
+    id: 'cq-2',
+    plateNumber: '59A-78900',
+    tier: 2,
+    tierLabel: 'Tier 2 (Upcoming Booked EV)',
+    hubId: 'hub-dorm-a',
+    socPercent: 10,
+    status: 'CRITICAL',
+    allocatedKw: 22,
+  },
+  {
+    id: 'cq-3',
+    plateNumber: '59A-12445',
+    tier: 3,
+    tierLabel: 'Tier 3 (Routine Charging EV)',
+    hubId: 'hub-dorm-a',
+    socPercent: 85,
+    status: 'AVAILABLE',
+    allocatedKw: 3.7,
+  },
+  {
+    id: 'cq-4',
+    plateNumber: '59A-12046',
+    tier: 3,
+    tierLabel: 'Tier 3 (Routine Charging EV)',
+    hubId: 'hub-dorm-b',
+    socPercent: 90,
+    status: 'THROTTLED',
+    allocatedKw: 3.7,
+  },
+  {
+    id: 'cq-5',
+    plateNumber: '58A-13527',
+    tier: 3,
+    tierLabel: 'Tier 3 (Routine Charging EV)',
+    hubId: 'hub-hcmut-2',
+    socPercent: 100,
+    status: 'AVAILABLE',
+    allocatedKw: 0,
+  },
+];
+
+export const INITIAL_ACTIVE_PARKING: ActiveParkingAndCharging = {
+  reservationId: 'PRK-2026-041',
+  hubId: 'hub-suoi-tien',
+  bayCode: 'BAY-A04',
+  floor: 1,
+  vehicleModel: 'VinFast Feliz',
+  plateNumber: '51H-228.08',
+  arrivalDate: 'Wed. Oct 08, 2024',
+  arrivalTime: '16:30',
+  durationHours: 3,
+  ePassCode: 'EPASS-VNU-ST01',
+  pinCode: '482-910',
+  parkingStatus: 'CHECKED_IN',
+  checkedIn: true,
+  chargingPortId: 'cp-a01',
+  chargingPortCode: 'CP-A01',
+  connectorType: 'TYPE_2',
+  chargingStatus: 'CHARGING',
+  socPercent: 64,
+  targetSocPercent: 90,
+  currentKw: 11,
+  energyDeliveredKwh: 8.4,
+  chargingElapsedMins: 42,
+};
+
+export const INITIAL_DLB_LOGS: DlbLogEntry[] = [
+  {
+    id: 'dlb-1',
+    time: '[08:45:00]',
+    level: 'INFO',
+    message:
+      'POLLING: Routine 15-minute telemetry sync complete. Grid state remains monitored.',
+  },
+  {
+    id: 'dlb-2',
+    time: '[08:30:15]',
+    level: 'INFO',
+    message:
+      'Grid load stable at 65%. All units operating at standard 7kW. No DLB throttling required at this time.',
+  },
+  {
+    id: 'dlb-3',
+    time: '[07:45:22]',
+    level: 'INFO',
+    message:
+      'Hub A incoming fleet detected. Power allocation distribution matrix optimized.',
+  },
+  {
+    id: 'dlb-4',
+    time: '[07:15:00]',
+    level: 'SYSTEM',
+    message:
+      'Morning cycle initiated. Capacity thresholds verified and actively monitored.',
+  },
+];
