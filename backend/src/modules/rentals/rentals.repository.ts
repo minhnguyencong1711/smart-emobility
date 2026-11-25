@@ -77,9 +77,17 @@ export class RentalsRepository {
       dto: ReturnVehicleDto;
       nextBattery: number;
       nextVehicleStatus: string;
+      metrics: {
+        endedAt: string;
+        durationMins: number;
+        distanceKm: number;
+        fareVnd: number;
+        rewardPoints: number;
+      };
     },
   ) {
-    const { rental, destHub, dto, nextBattery, nextVehicleStatus } = params;
+    const { rental, destHub, dto, nextBattery, nextVehicleStatus, metrics } =
+      params;
 
     await tx.sharedVehicle.update({
       where: { id: rental.vehicleId },
@@ -121,11 +129,11 @@ export class RentalsRepository {
       data: {
         status: 'RETURNED',
         destinationHubId: dto.destinationHubId,
-        endedAt: '11:08 AM',
-        durationMins: 28,
-        distanceKm: 4.6,
-        fareVnd: 12000,
-        rewardPoints: 12,
+        endedAt: metrics.endedAt,
+        durationMins: metrics.durationMins,
+        distanceKm: metrics.distanceKm,
+        fareVnd: metrics.fareVnd,
+        rewardPoints: metrics.rewardPoints,
         hasFault: dto.hasFault,
         remarks: dto.remarks ?? null,
       },

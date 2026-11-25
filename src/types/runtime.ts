@@ -11,6 +11,10 @@ export type ActiveVehicleHold = {
   status: 'CONFIRMED' | 'EXPIRED' | 'ACTIVE_TRIP' | 'RETURNED';
   tripId?: string;
   startedAt?: string;
+  startedAtIso?: string;
+  endedAt?: string;
+  tripDate?: string;
+  durationMins?: number;
   destinationHubId?: string;
   elapsedSeconds?: number;
   distanceKm?: number;

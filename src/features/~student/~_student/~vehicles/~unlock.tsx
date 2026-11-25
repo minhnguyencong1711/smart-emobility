@@ -10,6 +10,7 @@ import {
 } from '@/components/icons';
 import { Badge, Button, Callout, PageHeader, StatCard } from '@/components/ui';
 import { useMobilityStore, useToastStore } from '@/stores';
+import { formatDateShort, formatTime12h } from '@/utils/date-time';
 import { formatClockSeconds } from '@/utils/formatters';
 import { buildVehicleQrPayload, parseVehicleQrCode } from '@/utils/qr-payload';
 
@@ -134,8 +135,8 @@ function VehicleUnlockPage() {
                 onClick={async () => {
                   const res = await reserveVehicle(
                     targetVehicle.id,
-                    '24 Oct 2026',
-                    '10:30 AM',
+                    formatDateShort(0),
+                    formatTime12h(),
                   );
                   if (res.ok) {
                     pushToast({

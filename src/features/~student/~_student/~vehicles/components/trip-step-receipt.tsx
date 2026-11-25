@@ -3,9 +3,17 @@ import { Link } from '@tanstack/react-router';
 import { CheckCircleIcon, ReceiptIcon } from '@/components/icons';
 import { DetailRow } from '@/components/shared';
 import { Button, Callout, Card, Modal, StatusPill } from '@/components/ui';
-import type { MobilityHub, SharedVehicle, TripHistoryItem } from '@/types';
+import type {
+  ActiveVehicleHold,
+  MobilityHub,
+  SharedVehicle,
+  TripHistoryItem,
+} from '@/types';
+import { formatDateShort, formatTime12h } from '@/utils/date-time';
 
 export function TripStepReceipt({
+  hold,
+  vehicle,
   originHub,
   destHub,
   hasFault,
@@ -13,6 +21,8 @@ export function TripStepReceipt({
   onOpenReceipt,
   onFindAnother,
 }: {
+  hold: ActiveVehicleHold | null;
+  vehicle: SharedVehicle;
   originHub: MobilityHub;
   destHub: MobilityHub;
   hasFault: boolean;
@@ -20,6 +30,12 @@ export function TripStepReceipt({
   onOpenReceipt: () => void;
   onFindAnother: () => void;
 }) {
+  const distanceKm = hold?.distanceKm ?? 0.3;
+  const fareVnd = hold?.estimatedFareVnd ?? vehicle.ratePerMinVnd;
+  const rewardPoints = hold?.rewardPoints ?? 2;
+  const startedLabel = hold?.startedAt ?? formatTime12h();
+  const endedLabel = hold?.endedAt ?? formatTime12h();
+
   return (
     <div className="grid gap-5 xl:grid-cols-[1.15fr_1fr]">
       <Card padding="md" className="space-y-4">
@@ -42,35 +58,38 @@ export function TripStepReceipt({
           <div className="rounded-md border border-line bg-surface-2 p-3 text-center">
             <p className="text-caption text-ink-3">Distance traveled</p>
             <p className="mt-1 font-mono text-heading font-extrabold text-ink">
-              4.6 km
+              {distanceKm} km
             </p>
           </div>
           <div className="rounded-md border border-line bg-surface-2 p-3 text-center">
             <p className="text-caption text-ink-3">Estimated fare</p>
             <p className="mt-1 font-mono text-heading font-extrabold text-ink">
-              12,000 VND
+              {fareVnd.toLocaleString()} VND
             </p>
           </div>
           <div className="rounded-md border border-line bg-surface-2 p-3 text-center">
             <p className="text-caption text-ink-3">Reward points</p>
             <p className="mt-1 font-mono text-heading font-extrabold text-eco-700">
-              +12 pts
+              +{rewardPoints} pts
             </p>
           </div>
         </div>
 
         <div className="rounded-md border border-line bg-surface-2 px-4 py-1">
-          <DetailRow label="Origin" value={`${originHub.name} · 10:40 AM`} />
+          <DetailRow
+            label="Origin"
+            value={`${originHub.name} · ${startedLabel}`}
+          />
           <DetailRow
             label="Return confirmed"
-            value={`${destHub.name} · 11:08 AM`}
+            value={`${destHub.name} · ${endedLabel}`}
           />
           <DetailRow
             label="Final vehicle condition"
             value={
               hasFault
                 ? 'Fault reported · OUT_OF_SERVICE'
-                : 'Battery: 82% SoC · Eligible (AVAILABLE)'
+                : `Battery: ${vehicle.batterySoC}% SoC · Eligible (${vehicle.status})`
             }
           />
         </div>
@@ -105,7 +124,7 @@ export function TripStepReceipt({
             <DetailRow label="Reservation" value="Consumed at pickup" />
             <DetailRow
               label="Vehicle state"
-              value={hasFault ? 'OUT_OF_SERVICE' : 'AVAILABLE'}
+              value={hasFault ? 'OUT_OF_SERVICE' : vehicle.status}
               mono
             />
             <DetailRow label="Vehicle location" value={destHub.name} />
@@ -153,36 +172,49 @@ export function TripStepReceipt({
 export function TripReceiptModal({
   open,
   onClose,
+  hold,
   vehicle,
   originHub,
   destHub,
 }: {
   open: boolean;
   onClose: () => void;
+  hold: ActiveVehicleHold | null;
   vehicle: SharedVehicle;
   originHub: MobilityHub;
   destHub: MobilityHub;
 }) {
+  const tripId = hold?.tripId ?? 'T-RETURN';
+  const durationMins = hold?.durationMins ?? 1;
+  const distanceKm = hold?.distanceKm ?? 0.3;
+  const fareVnd = hold?.estimatedFareVnd ?? vehicle.ratePerMinVnd;
+  const rewardPoints = hold?.rewardPoints ?? 2;
+  const tripDate = hold?.tripDate ?? formatDateShort(0);
+
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Digital Trip Receipt · T-2408"
+      title={`Digital Trip Receipt · ${tripId}`}
       size="sm"
     >
       <div className="space-y-4">
-        <p className="text-body-sm text-ink-2">Completed · 24 Oct 2026</p>
+        <p className="text-body-sm text-ink-2">Completed · {tripDate}</p>
         <div className="rounded-md border border-line bg-surface-2 px-4 py-1">
-          <DetailRow label="Trip ID" value="T-2408" mono />
+          <DetailRow label="Trip ID" value={tripId} mono />
           <DetailRow
             label="Vehicle"
             value={`${vehicle.code} · ${vehicle.model}`}
           />
           <DetailRow label="Origin Hub" value={originHub.name} />
           <DetailRow label="Return Hub" value={destHub.name} />
-          <DetailRow label="Distance" value="4.6 km" />
-          <DetailRow label="Estimated Fare" value="12,000 VND" />
-          <DetailRow label="Reward Points" value="+12 pts" />
+          <DetailRow label="Duration" value={`${durationMins} min`} mono />
+          <DetailRow label="Distance" value={`${distanceKm} km`} />
+          <DetailRow
+            label="Estimated Fare"
+            value={`${fareVnd.toLocaleString()} VND`}
+          />
+          <DetailRow label="Reward Points" value={`+${rewardPoints} pts`} />
         </div>
         <div className="flex justify-end">
           <Button variant="primary" onClick={onClose}>
