@@ -13,8 +13,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix('api/v1');
+  const allowedOrigins = appConfig.corsOrigin
+    .split(',')
+    .map((o) => o.trim().replace(/\/$/, ''))
+    .filter(Boolean);
   app.enableCors({
-    origin: appConfig.corsOrigin.split(',').map((o) => o.trim()),
+    origin: allowedOrigins,
     credentials: true,
   });
   app.useGlobalPipes(
@@ -37,7 +41,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
-  await app.listen(appConfig.port);
+  await app.listen(appConfig.port, '0.0.0.0');
   logger.log(`API running on http://localhost:${appConfig.port}/api/v1`);
   logger.log(`Swagger UI at http://localhost:${appConfig.port}/api/docs`);
 }
