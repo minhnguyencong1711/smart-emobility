@@ -3,6 +3,7 @@ import type {
   ActiveVehicleHold,
   ChargingPoint,
   IncidentRecord,
+  LiveFleetRental,
   MobilityHub,
   ReserveParkingPayload,
   SharedVehicle,
@@ -71,6 +72,7 @@ export const backendApi = {
   // Rentals
   getActiveHold: () => apiRequest<ActiveVehicleHold | null>('/rentals/active'),
   getRentalHistory: () => apiRequest<TripHistoryItem[]>('/rentals/history'),
+  getLiveFleetRentals: () => apiRequest<LiveFleetRental[]>('/rentals/live'),
   holdVehicle: (vehicleId: string, pickupDate: string, pickupTime: string) =>
     apiRequest<ActiveVehicleHold>('/rentals/hold', {
       method: 'POST',

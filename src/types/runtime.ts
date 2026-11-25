@@ -24,6 +24,26 @@ export type ActiveVehicleHold = {
   remarks?: string;
 };
 
+export type LiveFleetRental = {
+  id: string;
+  reservationId: string;
+  tripId?: string;
+  status: 'CONFIRMED' | 'ACTIVE_TRIP';
+  vehicleId: string;
+  vehicleCode: string;
+  vehicleModel: string;
+  vehicleType: string;
+  batterySoC: number;
+  riderName: string;
+  riderEmail: string;
+  originHubId: string;
+  originHubName: string;
+  startedAt?: string;
+  startedAtIso?: string;
+  remainingSeconds: number;
+  elapsedSeconds?: number;
+};
+
 export type TripHistoryItem = {
   tripId: string;
   vehicleCode: string;

@@ -15,6 +15,7 @@ import type { HubStatus } from '@/types';
 import { getHubPriorityRank } from '@/utils/hub-metrics';
 
 import { HubPriorityQueue } from './components/hub-priority-queue';
+import { LiveFleetTripsCard } from './components/live-fleet-trips-card';
 import { MonitoringKpiRow } from './components/monitoring-kpi-row';
 
 export const Route = createFileRoute('/operator/_operator/monitoring/')({
@@ -25,7 +26,8 @@ type StatusFilter = 'ALL' | HubStatus;
 
 function NetworkMonitoringPage() {
   const navigate = useNavigate();
-  const { hubs, incidents, policyConfig } = useMobilityStore();
+  const { hubs, incidents, policyConfig, hydrateFromBackend } =
+    useMobilityStore();
   const pushToast = useToastStore((s) => s.pushToast);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +80,7 @@ function NetworkMonitoringPage() {
 
   function handleRefresh() {
     setRefreshing(true);
+    void hydrateFromBackend();
     window.setTimeout(() => {
       setRefreshing(false);
       pushToast({
@@ -212,6 +215,8 @@ function NetworkMonitoringPage() {
             onSelectHubId={setSelectedHubId}
           />
         </div>
+
+        <LiveFleetTripsCard />
       </div>
     </div>
   );
