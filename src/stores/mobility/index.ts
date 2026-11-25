@@ -67,9 +67,16 @@ export const useMobilityStore = create<MobilityState>((set, get, api) => ({
             backendApi.getRentalHistory().catch(() => get().tripHistory),
             backendApi.getActiveParking().catch(() => get().activeParking),
           ]);
-        patch.activeVehicleHold = activeVehicleHold;
+        const currentHold = get().activeVehicleHold;
+        const preserveReturnedReceipt =
+          activeVehicleHold === null && currentHold?.status === 'RETURNED';
+        patch.activeVehicleHold = preserveReturnedReceipt
+          ? currentHold
+          : activeVehicleHold;
         patch.tripHistory = tripHistory;
         patch.activeParking = activeParking;
+      } else {
+        patch.activeVehicleHold = null;
       }
 
       set(patch);

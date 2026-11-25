@@ -28,6 +28,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
 
   const { user, logout } = useAuthStore();
   const activeHold = useMobilityStore((s) => s.activeVehicleHold);
+  const clearReturnedTrip = useMobilityStore((s) => s.clearReturnedTrip);
   const activeParking = useMobilityStore((s) => s.activeParking);
   const navigate = useNavigate();
   const { pathname, searchStr } = useRouterState({
@@ -37,12 +38,17 @@ export function StudentShell({ children }: { children: ReactNode }) {
     }),
   });
 
+  const hasActiveRental =
+    activeHold?.status === 'CONFIRMED' || activeHold?.status === 'ACTIVE_TRIP';
   const navGroups = useMemo(
-    () => buildStudentNavGroups(Boolean(activeHold)),
-    [activeHold],
+    () => buildStudentNavGroups(hasActiveRental),
+    [hasActiveRental],
   );
 
   const handleLogout = () => {
+    if (activeHold?.status === 'RETURNED') {
+      clearReturnedTrip();
+    }
     logout();
     navigate({ to: '/login' });
   };

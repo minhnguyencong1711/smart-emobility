@@ -72,7 +72,10 @@ function ActiveTripReturnPage() {
   const originHub =
     hubs.find((h) => h.id === (activeVehicleHold?.hubId ?? vehicle.hubId)) ??
     hubs[3];
-  const destHub = hubs.find((h) => h.id === destinationHubId) ?? hubs[1];
+  const effectiveDestHubId = isReturned
+    ? (activeVehicleHold?.destinationHubId ?? destinationHubId)
+    : destinationHubId;
+  const destHub = hubs.find((h) => h.id === effectiveDestHubId) ?? hubs[1];
 
   const freeBays =
     destHub.coreBaysTotal -
@@ -223,7 +226,7 @@ function ActiveTripReturnPage() {
             vehicle={vehicle}
             originHub={originHub}
             destHub={destHub}
-            hasFault={hasFault}
+            hasFault={activeVehicleHold?.hasFault ?? hasFault}
             tripHistory={tripHistory}
             onOpenReceipt={() => setReceiptModalOpen(true)}
             onFindAnother={() => {

@@ -1,5 +1,3 @@
-import { Link } from '@tanstack/react-router';
-
 import { CheckCircleIcon, ReceiptIcon } from '@/components/icons';
 import { DetailRow } from '@/components/shared';
 import { Button, Callout, Card, Modal, StatusPill } from '@/components/ui';
@@ -159,11 +157,9 @@ export function TripStepReceipt({
           ) : null}
         </div>
 
-        <Link to="/student/vehicles" className="block">
-          <Button variant="secondary" fullWidth>
-            Back to Vehicle Catalogue
-          </Button>
-        </Link>
+        <Button variant="secondary" fullWidth onClick={onFindAnother}>
+          Back to Vehicle Catalogue
+        </Button>
       </Card>
     </div>
   );
