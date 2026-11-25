@@ -12,7 +12,9 @@ import {
   CurrentUser,
   type JwtUserPayload,
 } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { HoldVehicleDto, ReturnVehicleDto } from './dto/rentals.dto';
 import { RentalsService } from './rentals.service';
 
@@ -31,6 +33,13 @@ export class RentalsController {
   @Get('history')
   getHistory(@CurrentUser() user: JwtUserPayload) {
     return this.rentalsService.getHistory(user.sub);
+  }
+
+  @Get('live')
+  @UseGuards(RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  getLiveFleetRentals() {
+    return this.rentalsService.getLiveFleetRentals();
   }
 
   @Post('hold')

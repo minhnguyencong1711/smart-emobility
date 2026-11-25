@@ -195,3 +195,32 @@ export function buildReturnFaultIncidentData(params: {
     assignedCrew: 'Đinh Phạm Ngọc Phước',
   };
 }
+
+export function toLiveFleetRentalDto(
+  row: VehicleRental & {
+    user: { fullName: string; email: string };
+    vehicle: { code: string; model: string; type: string; batterySoC: number };
+    originHub: { shortName: string };
+  },
+) {
+  const base = toHoldDto(row);
+  return {
+    id: row.id,
+    reservationId: base.reservationId,
+    tripId: base.tripId,
+    status: base.status,
+    vehicleId: base.vehicleId,
+    vehicleCode: row.vehicle.code,
+    vehicleModel: row.vehicle.model,
+    vehicleType: row.vehicle.type,
+    batterySoC: row.vehicle.batterySoC,
+    riderName: row.user.fullName,
+    riderEmail: row.user.email,
+    originHubId: base.hubId,
+    originHubName: row.originHub.shortName,
+    startedAt: base.startedAt,
+    startedAtIso: base.startedAtIso,
+    remainingSeconds: base.remainingSeconds,
+    elapsedSeconds: base.elapsedSeconds,
+  };
+}

@@ -16,6 +16,7 @@ import {
   computeDeadlineLabel,
   computeTripReturnMetrics,
   toHoldDto,
+  toLiveFleetRentalDto,
   toRentalHistoryDto,
 } from './rentals.mapper';
 import { RentalsRepository } from './rentals.repository';
@@ -46,9 +47,13 @@ export class RentalsService {
     return rows.map(toRentalHistoryDto);
   }
 
+  async getLiveFleetRentals() {
+    const rows = await this.rentalsRepository.findAllActiveFleetRentals();
+    return rows.map(toLiveFleetRentalDto);
+  }
+
   async reserveVehicle(userId: string, dto: HoldVehicleDto) {
     const policy = await this.rentalsRepository.getPolicyConfig();
-
     return this.rentalsRepository.runTransaction(async (tx) => {
       const existing = await tx.vehicleRental.findFirst({
         where: { userId, status: { in: ['CONFIRMED', 'ACTIVE_TRIP'] } },
@@ -58,14 +63,11 @@ export class RentalsService {
           'A student may hold only one active shared-vehicle reservation or trip at a time.',
         );
       }
-
       const vehicle = await this.rentalsRepository.findVehicleWithClient(
         tx,
         dto.vehicleId,
       );
-      if (!vehicle) {
-        throw new NotFoundException('Selected vehicle was not found.');
-      }
+      if (!vehicle) throw new NotFoundException('Selected vehicle was not found.');
       if (vehicle.status !== 'AVAILABLE') {
         throw new ConflictException(
           `Vehicle ${vehicle.code} is currently ${vehicle.status} and cannot be reserved.`,

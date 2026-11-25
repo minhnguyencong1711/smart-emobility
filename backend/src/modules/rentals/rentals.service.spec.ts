@@ -35,6 +35,7 @@ describe('RentalsService', () => {
       runTransaction: jest.fn((fn) => fn(mockTx as never)),
       findActiveRentalByUser: jest.fn(),
       findRentalHistoryByUser: jest.fn(),
+      findAllActiveFleetRentals: jest.fn(),
       getPolicyConfig: jest.fn().mockResolvedValue({
         id: 1,
         gracePeriodMins: 20,

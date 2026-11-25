@@ -31,6 +31,14 @@ export class RentalsRepository {
     });
   }
 
+  findAllActiveFleetRentals() {
+    return this.prisma.vehicleRental.findMany({
+      where: { status: { in: ['CONFIRMED', 'ACTIVE_TRIP'] } },
+      include: { user: true, vehicle: true, originHub: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
   async getPolicyConfig() {
     return this.prisma.systemPolicy.upsert({
       where: { id: 1 },

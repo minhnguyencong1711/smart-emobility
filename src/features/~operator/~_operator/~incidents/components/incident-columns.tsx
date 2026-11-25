@@ -48,11 +48,19 @@ export function buildIncidentColumns({
     },
     {
       key: 'telemetry',
-      header: 'TELEMETRY ERROR CODE',
+      header: 'DIAGNOSTIC / TELEMETRY',
       cell: (row) => (
-        <span className="font-mono text-caption font-semibold text-danger-700">
-          {row.telemetryReading}
-        </span>
+        <div className="max-w-[280px] space-y-0.5">
+          <p className="font-mono text-caption font-semibold text-danger-700">
+            {row.telemetryReading}
+          </p>
+          <p
+            title={row.description}
+            className="line-clamp-1 text-caption text-ink-2"
+          >
+            {row.description}
+          </p>
+        </div>
       ),
     },
     {
@@ -85,6 +93,13 @@ export function buildIncidentColumns({
       align: 'right',
       cell: (row) => (
         <div className="flex justify-end gap-1.5">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => onInspectIncident(row)}
+          >
+            Inspect
+          </Button>
           {row.status === 'REPORTED' ? (
             <Button
               size="sm"
@@ -93,15 +108,7 @@ export function buildIncidentColumns({
             >
               Remote Isolate →
             </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => onInspectIncident(row)}
-            >
-              Inspect →
-            </Button>
-          )}
+          ) : null}
         </div>
       ),
     },
