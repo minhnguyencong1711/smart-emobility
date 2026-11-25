@@ -1,5 +1,29 @@
 import type { VehicleRental } from '@prisma/client';
 
+const VN_TZ = 'Asia/Ho_Chi_Minh';
+
+export function formatVnTime(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: VN_TZ,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+}
+
+export function formatVnDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: VN_TZ,
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+export function isIsoTimestamp(value?: string | null): boolean {
+  return Boolean(value && value.includes('T') && !Number.isNaN(Date.parse(value)));
+}
+
 export function computeDeadlineLabel(
   pickupTime: string,
   graceMins: number,
@@ -24,6 +48,26 @@ export function toHoldDto(rental: VehicleRental) {
       ? Math.max(0, Math.floor((rental.deadlineAt.getTime() - Date.now()) / 1000))
       : 0;
 
+  const startedAtIso = isIsoTimestamp(rental.startedAt)
+    ? (rental.startedAt as string)
+    : undefined;
+  const startedAtLabel = startedAtIso
+    ? formatVnTime(new Date(startedAtIso))
+    : (rental.startedAt ?? undefined);
+  const tripDate = startedAtIso
+    ? formatVnDate(new Date(startedAtIso))
+    : rental.pickupDate;
+
+  let elapsedSeconds: number | undefined;
+  if (rental.status === 'ACTIVE_TRIP' && startedAtIso) {
+    elapsedSeconds = Math.max(
+      0,
+      Math.floor((Date.now() - Date.parse(startedAtIso)) / 1000),
+    );
+  } else if (rental.durationMins) {
+    elapsedSeconds = rental.durationMins * 60;
+  }
+
   return {
     reservationId: rental.reservationCode,
     vehicleId: rental.vehicleId,
@@ -34,9 +78,13 @@ export function toHoldDto(rental: VehicleRental) {
     remainingSeconds,
     status: rental.status,
     tripId: rental.tripCode ?? undefined,
-    startedAt: rental.startedAt ?? undefined,
+    startedAt: startedAtLabel,
+    startedAtIso,
+    endedAt: rental.endedAt ?? undefined,
+    tripDate,
+    durationMins: rental.durationMins ?? undefined,
     destinationHubId: rental.destinationHubId ?? undefined,
-    elapsedSeconds: rental.durationMins ? rental.durationMins * 60 : undefined,
+    elapsedSeconds,
     distanceKm: rental.distanceKm ?? undefined,
     estimatedFareVnd: rental.fareVnd ?? undefined,
     rewardPoints: rental.rewardPoints ?? undefined,
@@ -60,18 +108,22 @@ export function toRentalHistoryDto(row: {
   rewardPoints: number | null;
   hasFault: boolean;
 }) {
+  const startedLabel = isIsoTimestamp(row.startedAt)
+    ? formatVnTime(new Date(row.startedAt as string))
+    : (row.startedAt ?? row.pickupTime);
+
   return {
     tripId: row.tripCode ?? row.reservationCode,
     vehicleCode: row.vehicle.code,
     vehicleType: row.vehicle.type,
     fromHubName: row.originHub.name,
     toHubName: row.destinationHub?.name ?? row.originHub.name,
-    startedAt: row.startedAt ?? row.pickupTime,
-    endedAt: row.endedAt ?? '11:08 AM',
-    durationMins: row.durationMins ?? 28,
-    distanceKm: row.distanceKm ?? 4.6,
-    fareVnd: row.fareVnd ?? 12000,
-    rewardPoints: row.rewardPoints ?? 12,
+    startedAt: startedLabel,
+    endedAt: row.endedAt ?? formatVnTime(new Date()),
+    durationMins: row.durationMins ?? 1,
+    distanceKm: row.distanceKm ?? 0.3,
+    fareVnd: row.fareVnd ?? 1500,
+    rewardPoints: row.rewardPoints ?? 2,
     hasFault: row.hasFault,
   };
 }
@@ -81,17 +133,41 @@ export function buildUnlockFallbackHoldData(
   vehicleId: string,
   hubId: string,
 ) {
+  const now = new Date();
+  const pickupTime = formatVnTime(now);
   return {
     id: `rnt-${Date.now()}`,
     reservationCode: `RES-${Math.floor(10000 + Math.random() * 89999)}`,
     userId,
     vehicleId,
     originHubId: hubId,
-    pickupDate: '24 Oct 2026',
-    pickupTime: '10:40 AM',
-    deadlineLabel: '10:55 AM',
-    deadlineAt: new Date(Date.now() + 15 * 60 * 1000),
+    pickupDate: formatVnDate(now),
+    pickupTime,
+    deadlineLabel: computeDeadlineLabel(pickupTime, 15),
+    deadlineAt: new Date(now.getTime() + 15 * 60 * 1000),
     status: 'CONFIRMED',
+  };
+}
+
+export function computeTripReturnMetrics(params: {
+  startedAt?: string | null;
+  fallbackUpdatedAt?: Date | null;
+  ratePerMinVnd?: number | null;
+}) {
+  const now = new Date();
+  const startMs = isIsoTimestamp(params.startedAt)
+    ? Date.parse(params.startedAt as string)
+    : (params.fallbackUpdatedAt?.getTime() ?? now.getTime());
+  const elapsedSec = Math.max(1, Math.floor((now.getTime() - startMs) / 1000));
+  const durationMins = Math.max(1, Math.ceil(elapsedSec / 60));
+  const distanceKm = Number(Math.max(0.2, durationMins * 0.25).toFixed(1));
+  const rate = params.ratePerMinVnd ?? 1500;
+  return {
+    endedAt: formatVnTime(now),
+    durationMins,
+    distanceKm,
+    fareVnd: durationMins * rate,
+    rewardPoints: Math.max(2, durationMins * 2),
   };
 }
 
@@ -115,7 +191,7 @@ export function buildReturnFaultIncidentData(params: {
       params.remarks?.trim() ||
       `Student reported fault upon trip return at ${params.destHubShortName}.`,
     telemetryReading: 'ERR_RETURN_INSPECTION',
-    reportedAt: 'Just now',
+    reportedAt: formatVnTime(new Date()),
     assignedCrew: 'Đinh Phạm Ngọc Phước',
   };
 }

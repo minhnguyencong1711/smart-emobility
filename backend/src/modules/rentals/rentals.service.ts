@@ -11,7 +11,13 @@ import {
   type IBarrierGatePort,
 } from '../../infrastructure/adapters/hardware.ports';
 import type { HoldVehicleDto, ReturnVehicleDto } from './dto/rentals.dto';
-import { buildUnlockFallbackHoldData, computeDeadlineLabel, toHoldDto, toRentalHistoryDto } from './rentals.mapper';
+import {
+  buildUnlockFallbackHoldData,
+  computeDeadlineLabel,
+  computeTripReturnMetrics,
+  toHoldDto,
+  toRentalHistoryDto,
+} from './rentals.mapper';
 import { RentalsRepository } from './rentals.repository';
 
 @Injectable()
@@ -138,13 +144,11 @@ export class RentalsService {
         orderBy: { createdAt: 'desc' },
       });
       if (!rental) return null;
-
       await this.rentalsRepository.releaseVehicleBackToHub(
         tx,
         rental.vehicleId,
         rental.originHubId,
       );
-
       const updated = await tx.vehicleRental.update({
         where: { id: rental.id },
         data: { status: 'EXPIRED' },
@@ -160,37 +164,27 @@ export class RentalsService {
         include: { vehicle: true },
         orderBy: { createdAt: 'desc' },
       });
-
       if (!rental) {
         const fallback = await tx.sharedVehicle.findFirst({
           where: { status: 'AVAILABLE' },
         });
-        if (!fallback) {
-          throw new NotFoundException('No available vehicle to unlock.');
-        }
+        if (!fallback) throw new NotFoundException('No available vehicle to unlock.');
         rental = await tx.vehicleRental.create({
-          data: buildUnlockFallbackHoldData(
-            userId,
-            fallback.id,
-            fallback.hubId,
-          ),
+          data: buildUnlockFallbackHoldData(userId, fallback.id, fallback.hubId),
           include: { vehicle: true },
         });
       }
-
       await this.gatePort.unlockSharedVehicle(rental.vehicle.code);
       await tx.sharedVehicle.update({
         where: { id: rental.vehicleId },
         data: { status: 'IN_USE' },
       });
-
-      const tripCode = `T-${Math.floor(2400 + Math.random() * 599)}`;
       const updated = await tx.vehicleRental.update({
         where: { id: rental.id },
         data: {
           status: 'ACTIVE_TRIP',
-          tripCode,
-          startedAt: '10:40 AM',
+          tripCode: `T-${Math.floor(2400 + Math.random() * 599)}`,
+          startedAt: new Date().toISOString(),
           destinationHubId: 'hub-dorm-a',
         },
       });
@@ -232,12 +226,19 @@ export class RentalsService {
           ? 'OUT_OF_SERVICE'
           : 'AVAILABLE';
 
+      const metrics = computeTripReturnMetrics({
+        startedAt: rental.startedAt,
+        fallbackUpdatedAt: rental.updatedAt,
+        ratePerMinVnd: rental.vehicle.ratePerMinVnd,
+      });
+
       const updated = await this.rentalsRepository.persistTripReturn(tx, {
         rental,
         destHub,
         dto,
         nextBattery,
         nextVehicleStatus,
+        metrics,
       });
 
       return toHoldDto(updated);

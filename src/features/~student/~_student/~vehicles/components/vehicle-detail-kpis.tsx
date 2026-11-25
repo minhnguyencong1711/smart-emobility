@@ -8,6 +8,7 @@ import {
 } from '@/components/icons';
 import { StatCard } from '@/components/ui';
 import type { MobilityHub, SharedVehicle } from '@/types';
+import { formatDateShort, formatElapsedClock } from '@/utils/date-time';
 
 export function VehicleDetailKpis({
   vehicle,
@@ -111,7 +112,9 @@ export function TripKpiRow({
   destHub,
   tripId,
   startedAt,
+  tripDate,
   freeBays,
+  elapsedSeconds,
   durationMins,
   step,
 }: {
@@ -119,7 +122,9 @@ export function TripKpiRow({
   destHub: MobilityHub;
   tripId: string;
   startedAt?: string;
+  tripDate?: string;
   freeBays: number;
+  elapsedSeconds: number;
   durationMins: number;
   step: 0 | 1 | 2;
 }) {
@@ -152,16 +157,22 @@ export function TripKpiRow({
       />
       <StatCard
         title="Trip Duration"
-        value={step === 2 ? durationMins + 1 : durationMins}
-        denominator="min"
-        badgeText={step === 2 ? 'Trip complete' : 'At return Hub'}
+        value={
+          step === 2
+            ? `${durationMins} min`
+            : formatElapsedClock(elapsedSeconds)
+        }
+        denominator={step === 2 ? 'billed' : 'live'}
+        badgeText={step === 2 ? 'Trip complete' : 'Active timer'}
         badgeTone={step === 2 ? 'ok' : 'primary'}
         icon={<ClockIcon size={18} />}
         iconTone="primary"
-        progress={step === 2 ? 100 : 80}
+        progress={
+          step === 2 ? 100 : Math.min(100, Math.max(10, durationMins * 5))
+        }
         progressTone="primary"
-        footerLeft={`Start: ${startedAt ?? '10:40 AM'}`}
-        footerRight="24 Oct 2026"
+        footerLeft={`Start: ${startedAt ?? '--:--'}`}
+        footerRight={tripDate ?? formatDateShort(0)}
       />
       <StatCard
         title="Return Progress"

@@ -1,5 +1,9 @@
 import { Select } from '@/components/ui';
 import type { MobilityHub } from '@/types';
+import {
+  buildUpcomingParkingTimes,
+  formatParkingDateLabel,
+} from '@/utils/date-time';
 
 import { VEHICLE_OPTIONS } from '../utils/parking-slots';
 
@@ -90,8 +94,14 @@ export function ParkingBookingForm({
               value={arrivalDate}
               onChange={(e) => onArrivalDateChange(e.target.value)}
               options={[
-                { value: 'Wed. Oct 08, 2026', label: 'Wed. Oct 08, 2026' },
-                { value: 'Thu. Oct 09, 2026', label: 'Thu. Oct 09, 2026' },
+                {
+                  value: formatParkingDateLabel(0),
+                  label: formatParkingDateLabel(0),
+                },
+                {
+                  value: formatParkingDateLabel(1),
+                  label: formatParkingDateLabel(1),
+                },
               ]}
             />
           </div>
@@ -99,11 +109,10 @@ export function ParkingBookingForm({
             label="Arrival Time"
             value={arrivalTime}
             onChange={(e) => onArrivalTimeChange(e.target.value)}
-            options={[
-              { value: '16:30', label: '16:30' },
-              { value: '17:00', label: '17:00' },
-              { value: '18:00', label: '18:00' },
-            ]}
+            options={buildUpcomingParkingTimes().map((t) => ({
+              value: t,
+              label: t,
+            }))}
           />
           <Select
             label="Duration"

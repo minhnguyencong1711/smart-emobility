@@ -3,6 +3,10 @@ import { useMemo, useState } from 'react';
 
 import { Button, PageHeader } from '@/components/ui';
 import { useMobilityStore, useToastStore } from '@/stores';
+import {
+  buildUpcomingParkingTimes,
+  formatParkingDateLabel,
+} from '@/utils/date-time';
 
 import { ParkingConfirmStep } from './components/parking-confirm-step';
 import { ParkingSelectionGrid } from './components/parking-floor-grid';
@@ -36,8 +40,12 @@ function ParkingReservationPage() {
 
   const [hubId, setHubId] = useState(hubs[0].id);
   const [vehicleChoice, setVehicleChoice] = useState(VEHICLE_OPTIONS[0].value);
-  const [arrivalDate, setArrivalDate] = useState('Wed. Oct 08, 2026');
-  const [arrivalTime, setArrivalTime] = useState('16:30');
+  const [arrivalDate, setArrivalDate] = useState(() =>
+    formatParkingDateLabel(0),
+  );
+  const [arrivalTime, setArrivalTime] = useState(
+    () => buildUpcomingParkingTimes()[0],
+  );
   const [durationHours, setDurationHours] = useState('3');
   const [floor, setFloor] = useState('1');
   const [selectedSlot, setSelectedSlot] = useState('A10');

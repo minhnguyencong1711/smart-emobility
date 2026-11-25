@@ -13,6 +13,14 @@ import {
 import { TripStepVerify } from './components/trip-step-verify';
 import { TripKpiRow } from './components/vehicle-detail-kpis';
 
+const RETURN_STEPS = [
+  { id: 'verify', label: 'Verify Hub', description: 'Geofence & capacity' },
+  { id: 'report', label: 'Secure & Report', description: 'Lock & condition' },
+  { id: 'receipt', label: 'Trip Receipt', description: 'Completed outcome' },
+];
+
+const STEP_LABELS = ['Hub validation', 'Condition report', 'Completed return'];
+
 export const Route = createFileRoute('/student/_student/vehicles/trip')({
   component: ActiveTripReturnPage,
 });
@@ -40,6 +48,7 @@ function ActiveTripReturnPage() {
   const [remarks, setRemarks] = useState('');
   const [physicalLockChecked, setPhysicalLockChecked] = useState(true);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     if (activeVehicleHold?.status === 'RETURNED') {
@@ -48,7 +57,12 @@ function ActiveTripReturnPage() {
   }, [activeVehicleHold?.status]);
 
   useInterval(
-    tickActiveTrip,
+    () => {
+      setNowMs(Date.now());
+      if (!activeVehicleHold?.startedAtIso) {
+        tickActiveTrip();
+      }
+    },
     activeVehicleHold?.status === 'ACTIVE_TRIP' ? 1000 : null,
   );
 
@@ -64,10 +78,20 @@ function ActiveTripReturnPage() {
     destHub.coreBaysTotal -
     destHub.coreBaysOccupied +
     (destHub.bufferBaysTotal - destHub.bufferBaysOccupied);
-  const durationMins = Math.max(
-    1,
-    Math.round((activeVehicleHold?.elapsedSeconds ?? 27 * 60) / 60),
-  );
+
+  const liveElapsedSeconds =
+    activeVehicleHold?.status === 'ACTIVE_TRIP' &&
+    activeVehicleHold.startedAtIso
+      ? Math.max(
+          0,
+          Math.floor(
+            (nowMs - Date.parse(activeVehicleHold.startedAtIso)) / 1000,
+          ),
+        )
+      : (activeVehicleHold?.elapsedSeconds ?? 0);
+  const durationMins =
+    activeVehicleHold?.durationMins ??
+    Math.max(1, Math.ceil(liveElapsedSeconds / 60));
 
   async function handleConfirmReturn() {
     if (!physicalLockChecked) {
@@ -79,7 +103,6 @@ function ActiveTripReturnPage() {
       });
       return;
     }
-
     const res = await completeVehicleReturn(
       destinationHubId,
       hasFault,
@@ -93,7 +116,6 @@ function ActiveTripReturnPage() {
       });
       return;
     }
-
     setStep(2);
     pushToast({
       tone: 'ok',
@@ -111,14 +133,7 @@ function ActiveTripReturnPage() {
           { label: 'Home', to: '/student/vehicles' },
           { label: 'Shared Mobility', to: '/student/vehicles' },
           { label: 'Active Trip' },
-          {
-            label:
-              step === 0
-                ? 'Hub validation'
-                : step === 1
-                  ? 'Condition report'
-                  : 'Completed return',
-          },
+          { label: STEP_LABELS[step] },
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -135,7 +150,7 @@ function ActiveTripReturnPage() {
           <Callout
             tone="info"
             title="No active trip in session"
-            description="Launch Trip T-2408 (EV-102 from HCMUT Campus 2 to Dormitory Zone A) to walk through all 3 return verification steps."
+            description="Launch a live demo trip on EV-102 (HCMUT Campus 2 to Dormitory Zone A) to walk through all 3 return verification steps."
             action={
               <Button
                 size="sm"
@@ -145,7 +160,7 @@ function ActiveTripReturnPage() {
                   setStep(0);
                 }}
               >
-                Start Active Trip (EV-102 · T-2408)
+                Start Active Trip (EV-102)
               </Button>
             }
           />
@@ -154,9 +169,11 @@ function ActiveTripReturnPage() {
         <TripKpiRow
           vehicle={vehicle}
           destHub={destHub}
-          tripId={activeVehicleHold?.tripId ?? 'T-2408'}
+          tripId={activeVehicleHold?.tripId ?? 'T-ACTIVE'}
           startedAt={activeVehicleHold?.startedAt}
+          tripDate={activeVehicleHold?.tripDate}
           freeBays={freeBays}
+          elapsedSeconds={liveElapsedSeconds}
           durationMins={durationMins}
           step={step}
         />
@@ -166,23 +183,7 @@ function ActiveTripReturnPage() {
           onStepClick={(idx) => {
             if (!isReturned && idx <= 1) setStep(idx as 0 | 1);
           }}
-          steps={[
-            {
-              id: 'verify',
-              label: 'Verify Hub',
-              description: 'Geofence & capacity',
-            },
-            {
-              id: 'report',
-              label: 'Secure & Report',
-              description: 'Lock & condition',
-            },
-            {
-              id: 'receipt',
-              label: 'Trip Receipt',
-              description: 'Completed outcome',
-            },
-          ]}
+          steps={RETURN_STEPS}
         />
 
         {step === 0 ? (
@@ -218,6 +219,8 @@ function ActiveTripReturnPage() {
 
         {step === 2 ? (
           <TripStepReceipt
+            hold={activeVehicleHold}
+            vehicle={vehicle}
             originHub={originHub}
             destHub={destHub}
             hasFault={hasFault}
@@ -234,6 +237,7 @@ function ActiveTripReturnPage() {
       <TripReceiptModal
         open={receiptModalOpen}
         onClose={() => setReceiptModalOpen(false)}
+        hold={activeVehicleHold}
         vehicle={vehicle}
         originHub={originHub}
         destHub={destHub}

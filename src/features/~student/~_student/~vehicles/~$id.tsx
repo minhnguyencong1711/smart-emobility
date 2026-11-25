@@ -5,6 +5,7 @@ import { ArrowLeftIcon } from '@/components/icons';
 import { Badge, Button, ConfirmDialog, PageHeader } from '@/components/ui';
 import { useInterval } from '@/hooks';
 import { useMobilityStore, useToastStore } from '@/stores';
+import { buildUpcomingPickupTimes, formatDateShort } from '@/utils/date-time';
 
 import { VehicleDetailKpis } from './components/vehicle-detail-kpis';
 import { VehicleReservePanel } from './components/vehicle-reserve-panel';
@@ -32,8 +33,10 @@ function VehicleDetailPage() {
   const vehicle = sharedVehicles.find((v) => v.id === id) ?? sharedVehicles[0];
   const hub = hubs.find((h) => h.id === vehicle.hubId) ?? hubs[0];
 
-  const [pickupDate, setPickupDate] = useState('24 Oct 2026');
-  const [pickupTime, setPickupTime] = useState('10:30 AM');
+  const [pickupDate, setPickupDate] = useState(() => formatDateShort(0));
+  const [pickupTime, setPickupTime] = useState(
+    () => buildUpcomingPickupTimes()[0],
+  );
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const isThisVehicleHeld =

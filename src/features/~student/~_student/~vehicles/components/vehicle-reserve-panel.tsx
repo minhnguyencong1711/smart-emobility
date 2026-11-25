@@ -12,8 +12,9 @@ import {
   StatusPill,
 } from '@/components/ui';
 import type { ActiveVehicleHold, MobilityHub, SharedVehicle } from '@/types';
+import { buildUpcomingPickupTimes, formatDateShort } from '@/utils/date-time';
 
-const PICKUP_TIMES = ['10:30 AM', '10:45 AM', '11:00 AM', '11:15 AM'];
+const PICKUP_TIMES = buildUpcomingPickupTimes();
 
 type VehicleReservePanelProps = {
   vehicle: SharedVehicle;
@@ -203,8 +204,8 @@ export function VehicleReservePanel({
             value={pickupDate}
             onChange={(e) => onPickupDateChange(e.target.value)}
             options={[
-              { value: '24 Oct 2026', label: '24 Oct 2026' },
-              { value: '25 Oct 2026', label: '25 Oct 2026' },
+              { value: formatDateShort(0), label: formatDateShort(0) },
+              { value: formatDateShort(1), label: formatDateShort(1) },
             ]}
           />
           <Select
