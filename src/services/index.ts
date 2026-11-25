@@ -1,4 +1,11 @@
 export {
+  ApiHttpError,
+  ApiNetworkError,
+  getStoredAccessToken,
+  setStoredAccessToken,
+} from './api-client';
+export { backendApi } from './backend-api.service';
+export {
   advanceChargingTelemetry,
   buildDlbTransition,
   buildParkingReservation,

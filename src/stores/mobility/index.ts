@@ -12,6 +12,7 @@ import {
   INITIAL_SHARED_VEHICLES,
   INITIAL_SIMULATIONS,
 } from '@/data';
+import { backendApi, getStoredAccessToken } from '@/services';
 
 import { createChargingSlice } from './slices/charging.slice';
 import { createFleetSlice } from './slices/fleet.slice';
@@ -30,15 +31,55 @@ export type {
   TripHistoryItem,
 } from './types';
 
-export const useMobilityStore = create<MobilityState>((...args) => ({
-  ...createFleetSlice(...args),
-  ...createRentalSlice(...args),
-  ...createChargingSlice(...args),
-  ...createOperationsSlice(...args),
-  ...createSimulationSlice(...args),
+export const useMobilityStore = create<MobilityState>((set, get, api) => ({
+  ...createFleetSlice(set, get, api),
+  ...createRentalSlice(set, get, api),
+  ...createChargingSlice(set, get, api),
+  ...createOperationsSlice(set, get, api),
+  ...createSimulationSlice(set, get, api),
 
-  resetDemoState: () =>
-    args[0]({
+  backendMode: 'offline',
+
+  hydrateFromBackend: async () => {
+    try {
+      const [policyConfig, hubs, sharedVehicles, chargingPoints, incidents] =
+        await Promise.all([
+          backendApi.getPolicy(),
+          backendApi.listHubs(),
+          backendApi.listVehicles(),
+          backendApi.listChargingPoints(),
+          backendApi.listIncidents(),
+        ]);
+
+      const patch: Partial<MobilityState> = {
+        backendMode: 'online',
+        policyConfig,
+        hubs,
+        sharedVehicles,
+        chargingPoints,
+        incidents,
+      };
+
+      if (getStoredAccessToken()) {
+        const [activeVehicleHold, tripHistory, activeParking] =
+          await Promise.all([
+            backendApi.getActiveHold().catch(() => null),
+            backendApi.getRentalHistory().catch(() => get().tripHistory),
+            backendApi.getActiveParking().catch(() => get().activeParking),
+          ]);
+        patch.activeVehicleHold = activeVehicleHold;
+        patch.tripHistory = tripHistory;
+        patch.activeParking = activeParking;
+      }
+
+      set(patch);
+    } catch {
+      // Preserve offline seed/in-memory behavior when BE is not running
+    }
+  },
+
+  resetDemoState: () => {
+    set({
       policyConfig: DEFAULT_POLICY_CONFIG,
       hubs: INITIAL_HUBS,
       sharedVehicles: INITIAL_SHARED_VEHICLES,
@@ -52,5 +93,12 @@ export const useMobilityStore = create<MobilityState>((...args) => ({
       dlbMode: 'NORMAL',
       chargingScheduleApplied: false,
       dlbActivityLogs: INITIAL_DLB_LOGS,
-    }),
+    });
+    if (getStoredAccessToken()) {
+      void backendApi
+        .resetBaseline()
+        .then(() => get().hydrateFromBackend())
+        .catch(() => undefined);
+    }
+  },
 }));

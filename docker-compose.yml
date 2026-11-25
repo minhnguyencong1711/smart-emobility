@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smart-emobility-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: emobility
+      POSTGRES_PASSWORD: emobility
+      POSTGRES_DB: smart_emobility
+    ports:
+      - '5432:5432'
+    volumes:
+      - emobility_pgdata:/var/lib/postgresql/data
+
+volumes:
+  emobility_pgdata:

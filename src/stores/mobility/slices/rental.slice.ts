@@ -1,10 +1,16 @@
 import {
+  ApiHttpError,
+  backendApi,
   buildActiveTripFromHold,
-  buildVehicleHold,
-  computeVehicleReturnOutcome,
+  getStoredAccessToken,
 } from '@/services';
 
 import type { MobilitySliceCreator, RentalSlice } from '../types';
+
+import {
+  buildOfflineHoldPatch,
+  buildOfflineReturnPatch,
+} from './rental.offline';
 
 export const createRentalSlice: MobilitySliceCreator<RentalSlice> = (
   set,
@@ -28,48 +34,33 @@ export const createRentalSlice: MobilitySliceCreator<RentalSlice> = (
     },
   ],
 
-  reserveVehicle: (vehicleId, pickupDate, pickupTime) => {
+  reserveVehicle: async (vehicleId, pickupDate, pickupTime) => {
     const state = get();
-    if (
-      state.activeVehicleHold &&
-      (state.activeVehicleHold.status === 'CONFIRMED' ||
-        state.activeVehicleHold.status === 'ACTIVE_TRIP')
-    ) {
-      return {
-        ok: false,
-        error:
-          'A student may hold only one active shared-vehicle reservation or trip at a time.',
-      };
+    if (state.backendMode === 'online' && getStoredAccessToken()) {
+      try {
+        const hold = await backendApi.holdVehicle(
+          vehicleId,
+          pickupDate,
+          pickupTime,
+        );
+        set({ activeVehicleHold: hold });
+        void get().hydrateFromBackend();
+        return { ok: true };
+      } catch (err) {
+        if (err instanceof ApiHttpError) {
+          return { ok: false, error: err.message };
+        }
+      }
     }
 
-    const vehicle = state.sharedVehicles.find((v) => v.id === vehicleId);
-    if (!vehicle) {
-      return { ok: false, error: 'Selected vehicle was not found.' };
-    }
-    if (vehicle.status !== 'AVAILABLE') {
-      return {
-        ok: false,
-        error: `Vehicle ${vehicle.code} is currently ${vehicle.status} and cannot be reserved.`,
-      };
-    }
-
-    set({
-      sharedVehicles: state.sharedVehicles.map((v) =>
-        v.id === vehicleId ? { ...v, status: 'RESERVED' } : v,
-      ),
-      hubs: state.hubs.map((h) =>
-        h.id === vehicle.hubId
-          ? { ...h, sharedEvsReady: Math.max(0, h.sharedEvsReady - 1) }
-          : h,
-      ),
-      activeVehicleHold: buildVehicleHold(
-        vehicle,
-        pickupDate,
-        pickupTime,
-        state.policyConfig.gracePeriodMins,
-      ),
-    });
-    return { ok: true };
+    const offline = buildOfflineHoldPatch(
+      state,
+      vehicleId,
+      pickupDate,
+      pickupTime,
+    );
+    if (offline.patch) set(offline.patch);
+    return offline.result;
   },
 
   tickHoldCountdown: () => {
@@ -107,6 +98,13 @@ export const createRentalSlice: MobilitySliceCreator<RentalSlice> = (
         status: 'EXPIRED',
       },
     });
+
+    if (state.backendMode === 'online' && getStoredAccessToken()) {
+      void backendApi
+        .expireHold()
+        .then(() => get().hydrateFromBackend())
+        .catch(() => undefined);
+    }
   },
 
   cancelVehicleHold: () => {
@@ -130,6 +128,13 @@ export const createRentalSlice: MobilitySliceCreator<RentalSlice> = (
         : state.hubs,
       activeVehicleHold: null,
     });
+
+    if (state.backendMode === 'online' && getStoredAccessToken()) {
+      void backendApi
+        .cancelHold()
+        .then(() => get().hydrateFromBackend())
+        .catch(() => undefined);
+    }
   },
 
   unlockReservedVehicle: () => {
@@ -147,6 +152,16 @@ export const createRentalSlice: MobilitySliceCreator<RentalSlice> = (
       ),
       activeVehicleHold: nextHold,
     });
+
+    if (state.backendMode === 'online' && getStoredAccessToken()) {
+      void backendApi
+        .unlockVehicle()
+        .then((res) => {
+          set({ activeVehicleHold: res });
+          return get().hydrateFromBackend();
+        })
+        .catch(() => undefined);
+    }
   },
 
   startDemoActiveTrip: (vehicleId = 'veh-102') => {
@@ -161,6 +176,16 @@ export const createRentalSlice: MobilitySliceCreator<RentalSlice> = (
       ),
       activeVehicleHold: buildActiveTripFromHold(null, vehicle),
     });
+
+    if (state.backendMode === 'online' && getStoredAccessToken()) {
+      void backendApi
+        .unlockVehicle()
+        .then((res) => {
+          set({ activeVehicleHold: res });
+          return get().hydrateFromBackend();
+        })
+        .catch(() => undefined);
+    }
   },
 
   tickActiveTrip: () => {
@@ -174,68 +199,33 @@ export const createRentalSlice: MobilitySliceCreator<RentalSlice> = (
     });
   },
 
-  completeVehicleReturn: (destinationHubId, hasFault, remarks) => {
+  completeVehicleReturn: async (destinationHubId, hasFault, remarks) => {
     const state = get();
-    const hold = state.activeVehicleHold;
-    if (!hold) {
-      return { ok: false, error: 'No active trip found to return.' };
+    if (state.backendMode === 'online' && getStoredAccessToken()) {
+      try {
+        const returned = await backendApi.returnVehicle(
+          destinationHubId,
+          hasFault,
+          remarks,
+        );
+        set({ activeVehicleHold: returned });
+        void get().hydrateFromBackend();
+        return { ok: true };
+      } catch (err) {
+        if (err instanceof ApiHttpError) {
+          return { ok: false, error: err.message };
+        }
+      }
     }
 
-    const destHub = state.hubs.find((h) => h.id === destinationHubId);
-    const originHub = state.hubs.find((h) => h.id === hold.hubId);
-    const vehicle = state.sharedVehicles.find((v) => v.id === hold.vehicleId);
-    if (!destHub || !vehicle) {
-      return { ok: false, error: 'Destination hub or vehicle not found.' };
-    }
-
-    const freeCore = destHub.coreBaysTotal - destHub.coreBaysOccupied;
-    const freeBuffer = destHub.bufferBaysTotal - destHub.bufferBaysOccupied;
-    if (freeCore + freeBuffer <= 0) {
-      return {
-        ok: false,
-        error: `${destHub.shortName} currently has 0 free bays. Choose an alternative hub or request field assistance.`,
-      };
-    }
-
-    const outcome = computeVehicleReturnOutcome({
-      hold,
-      vehicle,
-      originHub,
-      destHub,
-      policyConfig: state.policyConfig,
+    const offline = buildOfflineReturnPatch(
+      state,
+      destinationHubId,
       hasFault,
       remarks,
-    });
-
-    set({
-      sharedVehicles: state.sharedVehicles.map((v) =>
-        v.id === vehicle.id
-          ? {
-              ...v,
-              hubId: destinationHubId,
-              batterySoC: outcome.nextBattery,
-              status: outcome.nextVehicleStatus,
-            }
-          : v,
-      ),
-      hubs: state.hubs.map((h) => {
-        if (h.id !== destinationHubId) return h;
-        const incCore = h.coreBaysOccupied < h.coreBaysTotal ? 1 : 0;
-        const incBuffer = incCore === 0 ? 1 : 0;
-        return {
-          ...h,
-          coreBaysOccupied: h.coreBaysOccupied + incCore,
-          bufferBaysOccupied: h.bufferBaysOccupied + incBuffer,
-          sharedEvsReady:
-            outcome.nextVehicleStatus === 'AVAILABLE'
-              ? h.sharedEvsReady + 1
-              : h.sharedEvsReady,
-        };
-      }),
-      activeVehicleHold: outcome.returnedHold,
-      tripHistory: [outcome.historyEntry, ...state.tripHistory],
-    });
-    return { ok: true };
+    );
+    if (offline.patch) set(offline.patch);
+    return offline.result;
   },
 
   clearReturnedTrip: () => set({ activeVehicleHold: null }),

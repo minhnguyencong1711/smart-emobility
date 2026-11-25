@@ -4,10 +4,9 @@ import {
   ChargingStationIcon,
   CheckCircleIcon,
   ParkingIcon,
-  QrCodeIcon,
   ReceiptIcon,
 } from '@/components/icons';
-import { DetailRow } from '@/components/shared';
+import { DetailRow, QrCodeCard } from '@/components/shared';
 import {
   Badge,
   Button,
@@ -18,6 +17,7 @@ import {
   StatusPill,
 } from '@/components/ui';
 import type { ActiveParkingAndCharging } from '@/types';
+import { buildExitQrPayload } from '@/utils/qr-payload';
 
 export function PreExitOptionsView({
   activeParking,
@@ -160,9 +160,14 @@ export function CompletedExitReceiptView({
         </div>
 
         <div className="border-ok/30 bg-ok-soft/45 flex items-center gap-4 rounded-md border p-3.5">
-          <div className="border-ok/35 flex size-16 shrink-0 items-center justify-center rounded-md border bg-surface text-ok-700">
-            <QrCodeIcon size={44} />
-          </div>
+          <QrCodeCard
+            value={buildExitQrPayload({
+              reservationId: activeParking?.reservationId ?? 'PRK-2026-041',
+              totalVnd,
+            })}
+            size={76}
+            className="shrink-0"
+          />
           <div>
             <p className="font-mono text-body-sm font-bold text-ink">
               EXIT-{activeParking?.reservationId ?? 'PRK-2026-041'}

@@ -73,10 +73,10 @@ export function PortalSidebar({
             <HcmutLogo size={collapsed ? 38 : 40} className="shrink-0" />
             {!collapsed ? (
               <div className="min-w-0">
-                <p className="truncate text-body font-extrabold tracking-tight text-white">
+                <p className="text-body font-extrabold leading-tight tracking-tight text-white">
                   Smart E-Mobility
                 </p>
-                <p className="truncate text-label font-medium text-primary-300">
+                <p className="mt-0.5 text-[11px] font-medium leading-snug tracking-normal text-primary-300">
                   {subtitle}
                 </p>
               </div>

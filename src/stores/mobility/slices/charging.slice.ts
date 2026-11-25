@@ -6,12 +6,21 @@ import {
 } from '@/data';
 import {
   advanceChargingTelemetry,
+  ApiHttpError,
+  backendApi,
   buildDlbTransition,
-  buildParkingReservation,
   getConnectorNominalKw,
+  getStoredAccessToken,
 } from '@/services';
 
 import type { ChargingSlice, MobilitySliceCreator } from '../types';
+
+import {
+  buildOfflineParkingPatch,
+  buildPortReleasedPatch,
+  buildRecoverChargingPatch,
+  runOnlineChargingSync,
+} from './charging.offline';
 
 export const createChargingSlice: MobilitySliceCreator<ChargingSlice> = (
   set,
@@ -43,36 +52,29 @@ export const createChargingSlice: MobilitySliceCreator<ChargingSlice> = (
         : state,
     ),
 
-  reserveParkingBay: (payload) => {
+  reserveParkingBay: async (payload) => {
     const state = get();
-    const hub = state.hubs.find((h) => h.id === payload.hubId);
-    if (!hub) return { ok: false, error: 'Selected hub was not found.' };
-
-    const freeCore = hub.coreBaysTotal - hub.coreBaysOccupied;
-    if (freeCore <= 0) {
-      return {
-        ok: false,
-        error: `${hub.shortName} is at full parking capacity.`,
-      };
+    if (state.backendMode === 'online' && getStoredAccessToken()) {
+      try {
+        const session = await backendApi.reserveParking(payload);
+        set({ activeParking: session });
+        void get().hydrateFromBackend();
+        return { ok: true };
+      } catch (err) {
+        if (err instanceof ApiHttpError) {
+          return { ok: false, error: err.message };
+        }
+      }
     }
-
-    set({
-      hubs: state.hubs.map((h) =>
-        h.id === payload.hubId
-          ? { ...h, coreBaysOccupied: h.coreBaysOccupied + 1 }
-          : h,
-      ),
-      activeParking: buildParkingReservation(payload),
-    });
-    return { ok: true };
+    const offline = buildOfflineParkingPatch(state, payload);
+    if (offline.patch) set(offline.patch);
+    return offline.result;
   },
 
   cancelParkingReservation: () => {
-    const state = get();
-    const current = state.activeParking;
+    const current = get().activeParking;
     if (!current) return;
-
-    set({
+    set((state) => ({
       hubs: state.hubs.map((h) =>
         h.id === current.hubId
           ? { ...h, coreBaysOccupied: Math.max(0, h.coreBaysOccupied - 1) }
@@ -83,10 +85,13 @@ export const createChargingSlice: MobilitySliceCreator<ChargingSlice> = (
         parkingStatus: 'CANCELLED',
         checkedIn: false,
       },
-    });
+    }));
+    runOnlineChargingSync(get, () =>
+      backendApi.cancelParking().then(() => get().hydrateFromBackend()),
+    );
   },
 
-  checkInParkingPass: () =>
+  checkInParkingPass: () => {
     set((state) =>
       state.activeParking
         ? {
@@ -97,7 +102,13 @@ export const createChargingSlice: MobilitySliceCreator<ChargingSlice> = (
             },
           }
         : state,
-    ),
+    );
+    runOnlineChargingSync(get, () =>
+      backendApi.checkInParking().then((session) => {
+        set({ activeParking: session });
+      }),
+    );
+  },
 
   bookChargingSession: (portId, portCode, connectorType, targetSocPercent) => {
     const powerKw = getConnectorNominalKw(connectorType);
@@ -107,114 +118,72 @@ export const createChargingSlice: MobilitySliceCreator<ChargingSlice> = (
           ? { ...cp, status: 'CHARGING', currentPowerKw: powerKw }
           : cp,
       ),
-      activeParking: state.activeParking
-        ? {
-            ...state.activeParking,
-            checkedIn: true,
-            parkingStatus: 'CHECKED_IN',
-            chargingPortId: portId,
-            chargingPortCode: portCode,
-            connectorType,
-            chargingStatus: 'CHARGING',
-            targetSocPercent,
-            currentKw: powerKw,
-            interruptionReason: undefined,
-          }
-        : {
-            ...INITIAL_ACTIVE_PARKING,
-            chargingPortId: portId,
-            chargingPortCode: portCode,
-            connectorType,
-            chargingStatus: 'CHARGING',
-            targetSocPercent,
-            currentKw: powerKw,
-          },
+      activeParking: {
+        ...(state.activeParking ?? INITIAL_ACTIVE_PARKING),
+        checkedIn: true,
+        parkingStatus: 'CHECKED_IN',
+        chargingPortId: portId,
+        chargingPortCode: portCode,
+        connectorType,
+        chargingStatus: 'CHARGING',
+        targetSocPercent,
+        currentKw: powerKw,
+        interruptionReason: undefined,
+      },
     }));
+    runOnlineChargingSync(get, () =>
+      backendApi
+        .startCharging({ portId, portCode, connectorType, targetSocPercent })
+        .then((session) => set({ activeParking: session })),
+    );
   },
 
-  tickChargingProgress: () =>
+  tickChargingProgress: () => {
     set((state) =>
       state.activeParking
         ? { activeParking: advanceChargingTelemetry(state.activeParking) }
         : state,
-    ),
+    );
+    runOnlineChargingSync(get, () =>
+      backendApi
+        .tickCharging()
+        .then((session) => (session ? set({ activeParking: session }) : null)),
+    );
+  },
 
-  resumeInterruptedCharging: () =>
-    set((state) =>
-      state.activeParking
-        ? {
-            activeParking: {
-              ...state.activeParking,
-              chargingStatus: 'CHARGING',
-              currentKw: 11,
-              interruptionReason: undefined,
-            },
-          }
-        : state,
-    ),
+  resumeInterruptedCharging: () => {
+    set((state) => buildRecoverChargingPatch(state));
+    runOnlineChargingSync(get, () =>
+      backendApi
+        .recoverCharging('RESUME')
+        .then((session) => set({ activeParking: session })),
+    );
+  },
 
-  reassignChargingPort: (newPortCode) =>
-    set((state) =>
-      state.activeParking
-        ? {
-            activeParking: {
-              ...state.activeParking,
-              chargingPortId: newPortCode.toLowerCase(),
-              chargingPortCode: newPortCode,
-              chargingStatus: 'CHARGING',
-              currentKw: 11,
-              interruptionReason: undefined,
-            },
-          }
-        : state,
-    ),
+  reassignChargingPort: (newPortCode) => {
+    set((state) => buildRecoverChargingPatch(state, newPortCode));
+    runOnlineChargingSync(get, () =>
+      backendApi
+        .recoverCharging('REASSIGN', newPortCode)
+        .then((session) => set({ activeParking: session })),
+    );
+  },
 
-  stopChargingKeepParking: () =>
-    set((state) => {
-      const ap = state.activeParking;
-      if (!ap) return state;
-      return {
-        chargingPoints: ap.chargingPortId
-          ? state.chargingPoints.map((cp) =>
-              cp.id === ap.chargingPortId
-                ? { ...cp, status: 'AVAILABLE', currentPowerKw: 0 }
-                : cp,
-            )
-          : state.chargingPoints,
-        activeParking: {
-          ...ap,
-          chargingStatus: 'CHARGING_COMPLETED',
-          currentKw: 0,
-          parkingStatus: 'CHECKED_IN',
-        },
-      };
-    }),
+  stopChargingKeepParking: () => {
+    set((state) => buildPortReleasedPatch(state, { releaseBay: false }) ?? {});
+    runOnlineChargingSync(get, () =>
+      backendApi
+        .stopChargingKeepParking()
+        .then(() => get().hydrateFromBackend()),
+    );
+  },
 
-  exitHubReleaseBay: () =>
-    set((state) => {
-      const ap = state.activeParking;
-      if (!ap) return state;
-      return {
-        hubs: state.hubs.map((h) =>
-          h.id === ap.hubId
-            ? { ...h, coreBaysOccupied: Math.max(0, h.coreBaysOccupied - 1) }
-            : h,
-        ),
-        chargingPoints: ap.chargingPortId
-          ? state.chargingPoints.map((cp) =>
-              cp.id === ap.chargingPortId
-                ? { ...cp, status: 'AVAILABLE', currentPowerKw: 0 }
-                : cp,
-            )
-          : state.chargingPoints,
-        activeParking: {
-          ...ap,
-          chargingStatus: 'CHARGING_COMPLETED',
-          currentKw: 0,
-          parkingStatus: 'EXITED',
-        },
-      };
-    }),
+  exitHubReleaseBay: () => {
+    set((state) => buildPortReleasedPatch(state, { releaseBay: true }) ?? {});
+    runOnlineChargingSync(get, () =>
+      backendApi.exitHubReleaseBay().then(() => get().hydrateFromBackend()),
+    );
+  },
 
   setDlbMode: (mode) =>
     set((state) => {

@@ -43,7 +43,7 @@ export type RentalSlice = {
     vehicleId: string,
     pickupDate: string,
     pickupTime: string,
-  ) => ActionResult;
+  ) => Promise<ActionResult>;
   tickHoldCountdown: () => void;
   expireVehicleHold: () => void;
   cancelVehicleHold: () => void;
@@ -54,7 +54,7 @@ export type RentalSlice = {
     destinationHubId: string,
     hasFault: boolean,
     remarks: string,
-  ) => ActionResult;
+  ) => Promise<ActionResult>;
   clearReturnedTrip: () => void;
 };
 
@@ -69,7 +69,7 @@ export type ChargingSlice = {
     status: ChargingSessionStatus,
     reason?: string,
   ) => void;
-  reserveParkingBay: (payload: ReserveParkingPayload) => ActionResult;
+  reserveParkingBay: (payload: ReserveParkingPayload) => Promise<ActionResult>;
   cancelParkingReservation: () => void;
   checkInParkingPass: () => void;
   bookChargingSession: (
@@ -114,6 +114,8 @@ export type MobilityState = FleetSlice &
   ChargingSlice &
   OperationsSlice &
   SimulationSlice & {
+    backendMode: 'online' | 'offline';
+    hydrateFromBackend: () => Promise<void>;
     resetDemoState: () => void;
   };
 

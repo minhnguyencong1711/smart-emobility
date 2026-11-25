@@ -1,0 +1,176 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                     String                   @id
+  email                  String                   @unique
+  passwordHash           String
+  fullName               String
+  initials               String
+  role                   String
+  title                  String
+  failedAttempts         Int                      @default(0)
+  lockedUntil            DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  rentals                VehicleRental[]
+  parkingChargingSessions ParkingChargingSession[]
+}
+
+model SystemPolicy {
+  id                     Int      @id @default(1)
+  gracePeriodMins        Int      @default(15)
+  gridWarningThreshold   Int      @default(85)
+  gridCriticalThreshold  Int      @default(90)
+  baySaturationThreshold Int      @default(85)
+  minDispatchSoC         Int      @default(20)
+  updatedAt              DateTime @updatedAt
+}
+
+model MobilityHub {
+  id                     String                   @id
+  code                   String                   @unique
+  name                   String
+  shortName              String
+  location               String
+  status                 String
+  lat                    Float
+  lng                    Float
+  walkMins               Int
+  anchorOffsetX          Int                      @default(10)
+  anchorOffsetY          Int                      @default(-14)
+  mapX                   Int
+  mapY                   Int
+  coreBaysTotal          Int
+  coreBaysOccupied       Int
+  bufferBaysTotal        Int
+  bufferBaysOccupied     Int
+  reservedInboundBays    Int                      @default(0)
+  gridMaxKw              Int
+  gridCurrentKw          Int
+  chargerPortsTotal      Int
+  chargerPortsActive     Int
+  sharedEvsTotal         Int
+  sharedEvsReady         Int
+  avgBatterySoC          Int
+  vehicles               SharedVehicle[]
+  chargingPoints         ChargingPoint[]
+  incidents              Incident[]
+  originRentals          VehicleRental[]          @relation("OriginHub")
+  destinationRentals     VehicleRental[]          @relation("DestinationHub")
+  parkingSessions        ParkingChargingSession[]
+}
+
+model SharedVehicle {
+  id             String          @id
+  code           String          @unique
+  model          String
+  type           String
+  hubId          String
+  hub            MobilityHub     @relation(fields: [hubId], references: [id])
+  batterySoC     Int
+  rangeKm        Int
+  ratePerMinVnd  Int
+  walkMins       Int?
+  status         String
+  rentals        VehicleRental[]
+}
+
+model VehicleRental {
+  id               String       @id
+  reservationCode  String       @unique
+  tripCode         String?
+  userId           String
+  user             User         @relation(fields: [userId], references: [id])
+  vehicleId        String
+  vehicle          SharedVehicle @relation(fields: [vehicleId], references: [id])
+  originHubId      String
+  originHub        MobilityHub  @relation("OriginHub", fields: [originHubId], references: [id])
+  destinationHubId String?
+  destinationHub   MobilityHub? @relation("DestinationHub", fields: [destinationHubId], references: [id])
+  pickupDate       String
+  pickupTime       String
+  deadlineLabel    String
+  deadlineAt       DateTime
+  status           String
+  startedAt        String?
+  endedAt          String?
+  durationMins     Int?
+  distanceKm       Float?
+  fareVnd          Int?
+  rewardPoints     Int?
+  hasFault         Boolean      @default(false)
+  remarks          String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model ChargingPoint {
+  id             String                   @id
+  code           String                   @unique
+  hubId          String
+  hub            MobilityHub              @relation(fields: [hubId], references: [id])
+  connectorType  String
+  maxPowerKw     Float
+  currentPowerKw Float
+  status         String
+  earthLeakageMa Float
+  sessions       ParkingChargingSession[]
+}
+
+model ParkingChargingSession {
+  id                  String         @id
+  reservationId       String         @unique
+  userId              String
+  user                User           @relation(fields: [userId], references: [id])
+  hubId               String
+  hub                 MobilityHub    @relation(fields: [hubId], references: [id])
+  bayCode             String
+  floor               Int
+  vehicleModel        String
+  plateNumber         String
+  arrivalDate         String
+  arrivalTime         String
+  durationHours       Int
+  ePassCode           String
+  pinCode             String
+  parkingStatus       String
+  checkedIn           Boolean        @default(false)
+  chargingPortId      String?
+  chargingPort        ChargingPoint? @relation(fields: [chargingPortId], references: [id])
+  chargingPortCode    String?
+  connectorType       String         @default("TYPE_2")
+  chargingStatus      String         @default("PENDING")
+  socPercent          Int            @default(48)
+  targetSocPercent    Int            @default(90)
+  currentKw           Float          @default(0)
+  energyDeliveredKwh  Float          @default(0)
+  chargingElapsedMins Int            @default(0)
+  interruptionReason  String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+}
+
+model Incident {
+  id               String      @id
+  code             String      @unique
+  hubId            String
+  hub              MobilityHub @relation(fields: [hubId], references: [id])
+  resourceId       String
+  resourceCode     String
+  severity         String
+  status           String
+  description      String
+  telemetryReading String
+  reportedAt       String
+  assignedCrew     String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}

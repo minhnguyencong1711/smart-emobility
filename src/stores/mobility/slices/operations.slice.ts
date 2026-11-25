@@ -2,7 +2,9 @@ import { INITIAL_INCIDENTS, INITIAL_REDISTRIBUTION_ORDERS } from '@/data';
 import {
   applyIncidentIsolation,
   applyRedistributionHubTransfers,
+  backendApi,
   buildRedistributionOrder,
+  getStoredAccessToken,
 } from '@/services';
 
 import type { MobilitySliceCreator, OperationsSlice } from '../types';
@@ -14,7 +16,7 @@ export const createOperationsSlice: MobilitySliceCreator<OperationsSlice> = (
   incidents: INITIAL_INCIDENTS,
   redistributionOrders: INITIAL_REDISTRIBUTION_ORDERS,
 
-  isolateIncidentEquipment: (incidentId, assignedCrew) =>
+  isolateIncidentEquipment: (incidentId, assignedCrew) => {
     set((state) =>
       applyIncidentIsolation({
         incidentId,
@@ -23,7 +25,14 @@ export const createOperationsSlice: MobilitySliceCreator<OperationsSlice> = (
         chargingPoints: state.chargingPoints,
         activeParking: state.activeParking,
       }),
-    ),
+    );
+    if (get().backendMode === 'online' && getStoredAccessToken()) {
+      void backendApi
+        .isolateIncident(incidentId, assignedCrew)
+        .then(() => get().hydrateFromBackend())
+        .catch(() => undefined);
+    }
+  },
 
   createRedistributionOrder: ({
     sourceHubId,

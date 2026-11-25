@@ -21,7 +21,7 @@ export const Route = createFileRoute('/reset-password/')({
 });
 
 function ResetPasswordPage() {
-  const { resetTargetEmail, setResetTargetEmail, resetLockout } =
+  const { resetTargetEmail, setResetTargetEmail, resetPasswordWithOtp } =
     useAuthStore();
   const pushToast = useToastStore((s) => s.pushToast);
   const navigate = useNavigate();
@@ -47,7 +47,7 @@ function ResetPasswordPage() {
     });
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (secondsLeft <= 0) {
       setFormError('OTP code has expired. Click Resend to get a new code.');
@@ -63,8 +63,13 @@ function ResetPasswordPage() {
       return;
     }
 
+    const res = await resetPasswordWithOtp(code, newPassword);
+    if (!res.ok) {
+      setFormError(res.error ?? 'Failed to reset password.');
+      return;
+    }
+
     setFormError(null);
-    resetLockout();
     pushToast({
       tone: 'ok',
       title: 'Password updated',

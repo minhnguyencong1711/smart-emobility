@@ -23,7 +23,13 @@ export default [
   ...typescriptEslint.configs.recommended,
   ...tailwindcssPlugin.configs['flat/recommended'],
   {
-    ignores: ['dist/*', 'node_modules/*', '*.cjs', 'src/routeTree.gen.ts'],
+    ignores: [
+      'dist/*',
+      'node_modules/*',
+      '*.cjs',
+      'src/routeTree.gen.ts',
+      'backend/**',
+    ],
   },
   {
     files: ['**/*.{ts,tsx}'],

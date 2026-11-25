@@ -109,9 +109,9 @@ function ParkingReservationPage() {
     setStepIndex(1);
   }
 
-  function handleConfirmReserve() {
+  async function handleConfirmReserve() {
     const [vehicleModel, plateNumber] = vehicleChoice.split('|');
-    const res = reserveParkingBay({
+    const res = await reserveParkingBay({
       hubId,
       bayCode: selectedSlot,
       floor: Number(floor),

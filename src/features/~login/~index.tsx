@@ -49,9 +49,9 @@ function LoginPage() {
     return () => window.clearInterval(timer);
   }, [isLockedOut]);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const res = loginWithCredentials(email, password);
+    const res = await loginWithCredentials(email, password);
     if (!res.ok) {
       setFormError(res.error ?? 'Unable to sign in.');
       return;
@@ -100,8 +100,8 @@ function LoginPage() {
             fullWidth
             leadingIcon={<GoogleLogo size={18} />}
             disabled={isLockedOut}
-            onClick={() => {
-              loginWithGoogle();
+            onClick={async () => {
+              await loginWithGoogle();
               pushToast({
                 tone: 'ok',
                 title: 'Google Workspace SSO verified',

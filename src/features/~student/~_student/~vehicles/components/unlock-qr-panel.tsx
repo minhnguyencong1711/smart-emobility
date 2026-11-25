@@ -6,6 +6,7 @@ import {
   QrCodeIcon,
   UnlockIcon,
 } from '@/components/icons';
+import { QrCodeCard, QrScannerViewport } from '@/components/shared';
 import {
   Badge,
   Button,
@@ -16,27 +17,29 @@ import {
   StatusPill,
 } from '@/components/ui';
 import type { MobilityHub, SharedVehicle } from '@/types';
-import { cn } from '@/utils/cn';
+import { buildVehicleQrPayload } from '@/utils/qr-payload';
 
 export function UnlockScannerView({
   targetVehicle,
   targetHub,
-  torchOn,
+  cameraActive,
   manualCode,
-  onToggleTorch,
+  onCameraActiveChange,
   onManualCodeChange,
-  onSimulateScan,
-  onSimulateError,
+  onVerifyCode,
+  onScanError,
 }: {
   targetVehicle: SharedVehicle;
   targetHub: MobilityHub;
-  torchOn: boolean;
+  cameraActive: boolean;
   manualCode: string;
-  onToggleTorch: () => void;
+  onCameraActiveChange: (active: boolean) => void;
   onManualCodeChange: (val: string) => void;
-  onSimulateScan: () => void;
-  onSimulateError: () => void;
+  onVerifyCode: (rawValue: string) => void;
+  onScanError: (msg: string) => void;
 }) {
+  const expectedQr = buildVehicleQrPayload(targetVehicle.code, targetHub.code);
+
   return (
     <div className="grid gap-5 xl:grid-cols-[1.25fr_1fr]">
       <Card padding="md" className="space-y-4">
@@ -50,63 +53,55 @@ export function UnlockScannerView({
         </div>
 
         <p className="text-body-sm text-ink-2">
-          Point your phone camera at the QR label on your reserved vehicle{' '}
+          Scan or upload the QR label on reserved vehicle{' '}
           <strong>{targetVehicle.code}</strong> at {targetHub.shortName}.
         </p>
 
-        <div className="relative flex min-h-[280px] flex-col items-center justify-between overflow-hidden rounded-lg border border-navy-700 bg-ink p-5 text-white">
-          <div className="flex w-full items-center justify-between text-caption">
-            <Badge tone="navy" className="bg-white/10 text-white">
-              CAMERA PREVIEW
-            </Badge>
-            <button
-              type="button"
-              onClick={onToggleTorch}
-              className={cn(
-                'rounded-full border px-3 py-1 text-caption font-semibold transition-colors',
-                torchOn
-                  ? 'border-warn bg-warn text-ink'
-                  : 'border-white/25 bg-white/10 text-white hover:bg-white/20',
-              )}
-            >
-              {torchOn ? 'Flashlight On' : 'Flashlight'}
-            </button>
-          </div>
-
-          <div className="relative my-4 flex size-44 items-center justify-center rounded-lg border-2 border-dashed border-primary-300 bg-white/5">
-            <QrCodeIcon size={84} className="text-primary-300" />
-            <span className="absolute -bottom-3 rounded-full bg-primary px-2.5 py-0.5 font-mono text-[11px] font-bold text-white">
-              Align QR code inside frame
-            </span>
-          </div>
-
-          <p className="text-center text-caption text-white/75">
-            Check that the vehicle ID on the bike matches {targetVehicle.code}.
-            Pickup authorization is validated before unlock.
-          </p>
-        </div>
+        <QrScannerViewport
+          badgeText="CAMERA READY"
+          active={cameraActive}
+          onActiveChange={onCameraActiveChange}
+          onScanResult={onVerifyCode}
+          onScanError={onScanError}
+          hintText={`Verify vehicle ID ${targetVehicle.code} before smart lock release.`}
+        />
       </Card>
 
       <Card padding="md" className="flex flex-col justify-between gap-4">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-title font-extrabold text-ink">
-              Vehicle &amp; Reservation
+              Vehicle QR Sticker &amp; Verification
             </h3>
-            <Badge tone="ok">Reservation valid</Badge>
+            <Badge tone="ok">{targetVehicle.code}</Badge>
+          </div>
+
+          <div className="flex flex-col items-center gap-4 rounded-lg border border-line bg-surface-2 p-3.5 sm:flex-row">
+            <QrCodeCard
+              value={expectedQr}
+              size={104}
+              downloadable
+              downloadFileName={`${targetVehicle.code}-qr.png`}
+            />
+            <div className="flex-1 space-y-1.5 text-left">
+              <p className="text-label font-bold uppercase tracking-wider text-ink-3">
+                On-Bike QR Label
+              </p>
+              <p className="break-all font-mono text-caption font-semibold text-ink">
+                {expectedQr}
+              </p>
+              <p className="text-caption text-ink-2">
+                Download PNG to test Upload QR Image, or scan directly with your
+                phone or webcam.
+              </p>
+            </div>
           </div>
 
           <Input
             label="Manual QR / Vehicle Sticker Code"
             value={manualCode}
             onChange={(e) => onManualCodeChange(e.target.value)}
-            hint="Manual scanning never bypasses reservation validation."
-          />
-
-          <Callout
-            tone="info"
-            title="Before you scan"
-            description={`Check that the sticker matches ${targetVehicle.code} at ${targetHub.shortName}. Preview only — no physical lock is connected.`}
+            hint={`Accepts ${expectedQr} or vehicle ID (${targetVehicle.code}).`}
           />
         </div>
 
@@ -115,13 +110,26 @@ export function UnlockScannerView({
             variant="primary"
             fullWidth
             leadingIcon={<UnlockIcon size={16} />}
-            onClick={onSimulateScan}
+            onClick={() => onVerifyCode(manualCode)}
           >
-            Simulate Scan
+            Verify QR &amp; Unlock
           </Button>
-          <Button variant="danger" fullWidth onClick={onSimulateError}>
-            Preview Scan Error
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => onVerifyCode(expectedQr)}
+            >
+              Quick Match ({targetVehicle.code})
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={() => onVerifyCode('VNU-EV|EV-999|WRONG')}
+            >
+              Test Mismatch QR
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
@@ -143,12 +151,10 @@ export function UnlockingLoaderView({
           Authorizing Vehicle Pickup
         </h2>
         <p className="text-body-sm text-ink-2">
-          QR validated — completing pickup authorization. Synchronizing
-          reservation, vehicle, and trip states...
+          QR payload validated for <strong>{targetVehicle.code}</strong>.
+          Synchronizing reservation, vehicle, and trip states...
         </p>
-        <Badge tone="primary">
-          Status: Awaiting confirmation · Step 2 of 3
-        </Badge>
+        <Badge tone="primary">Step 2 of 3 · Smart Lock Verification</Badge>
       </div>
 
       <div className="space-y-2.5 text-left">
@@ -160,25 +166,8 @@ export function UnlockingLoaderView({
                 QR &amp; identity verified
               </p>
               <p className="text-caption text-ink-2">
-                Correct Student, Hub and reserved vehicle ({targetVehicle.code}
-                ).
-              </p>
-            </div>
-          </div>
-          <StatusPill tone="ok" icon={<CheckCircleIcon size={12} />}>
-            Passed
-          </StatusPill>
-        </div>
-
-        <div className="border-ok/30 flex items-center justify-between rounded-md border bg-ok-soft px-4 py-3">
-          <div className="flex items-center gap-2.5">
-            <CheckCircleIcon size={18} className="text-ok-700" />
-            <div>
-              <p className="text-body-sm font-bold text-ink">
-                Safety check passed
-              </p>
-              <p className="text-caption text-ink-2">
-                No operational restriction on {targetHub.shortName}.
+                Matched Student hold at {targetHub.shortName} (
+                {targetVehicle.code}).
               </p>
             </div>
           </div>
@@ -192,10 +181,10 @@ export function UnlockingLoaderView({
             <Spinner size="sm" />
             <div>
               <p className="text-body-sm font-bold text-ink">
-                Trip activation pending
+                Releasing smart lock
               </p>
               <p className="text-caption text-ink-2">
-                Starting Trip T-2408 and unlocking smart lock...
+                Starting active trip for {targetVehicle.code}...
               </p>
             </div>
           </div>
@@ -210,10 +199,12 @@ export function UnlockingLoaderView({
 
 export function UnlockErrorView({
   targetVehicle,
+  scannedCode,
   onRequestAssistance,
   onRetryScan,
 }: {
   targetVehicle: SharedVehicle;
+  scannedCode?: string | null;
   onRequestAssistance: () => void;
   onRetryScan: () => void;
 }) {
@@ -230,42 +221,40 @@ export function UnlockErrorView({
 
       <Callout
         tone="danger"
-        title="QR Code Does Not Match"
-        description={`The scanned QR label could not be matched to ${targetVehicle.code}. The pickup request was rejected and your trip has not started.`}
+        title="QR Code Does Not Match Reserved Vehicle"
+        description={`Expected ${targetVehicle.code}, but scanned payload "${scannedCode ?? 'UNKNOWN'}" could not be authorized.`}
       />
 
       <div className="rounded-md border border-line bg-surface-2 px-3 py-2 font-mono text-caption text-ink-2">
-        QR_VEHICLE_MISMATCH · Verification rejected
+        QR_VEHICLE_MISMATCH · Expected: {targetVehicle.code}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-md border border-line p-3">
-          <AlertTriangleIcon size={18} className="text-warn-700" />
-          <p className="mt-1.5 text-body-sm font-bold text-ink">
-            1. Check vehicle ID
-          </p>
-          <p className="text-caption text-ink-3">
-            Compare the sticker label with {targetVehicle.code}.
-          </p>
-        </div>
-        <div className="rounded-md border border-line p-3">
-          <QrCodeIcon size={18} className="text-primary-700" />
-          <p className="mt-1.5 text-body-sm font-bold text-ink">
-            2. Scan again
-          </p>
-          <p className="text-caption text-ink-3">
-            Hold the QR sticker steady inside the frame.
-          </p>
-        </div>
-        <div className="rounded-md border border-line p-3">
-          <MapPinIcon size={18} className="text-eco-700" />
-          <p className="mt-1.5 text-body-sm font-bold text-ink">
-            3. Request assistance
-          </p>
-          <p className="text-caption text-ink-3">
-            Contact hub support if the QR label is damaged.
-          </p>
-        </div>
+        {[
+          {
+            title: '1. Check vehicle ID',
+            desc: `Compare sticker with ${targetVehicle.code}.`,
+            icon: <AlertTriangleIcon size={18} className="text-warn-700" />,
+          },
+          {
+            title: '2. Scan again',
+            desc: 'Center QR code inside viewfinder.',
+            icon: <QrCodeIcon size={18} className="text-primary-700" />,
+          },
+          {
+            title: '3. Hub support',
+            desc: 'Report damaged sticker to crew.',
+            icon: <MapPinIcon size={18} className="text-eco-700" />,
+          },
+        ].map((step) => (
+          <div key={step.title} className="rounded-md border border-line p-3">
+            {step.icon}
+            <p className="mt-1.5 text-body-sm font-bold text-ink">
+              {step.title}
+            </p>
+            <p className="text-caption text-ink-3">{step.desc}</p>
+          </div>
+        ))}
       </div>
 
       <div className="flex flex-wrap justify-end gap-2">

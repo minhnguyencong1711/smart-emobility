@@ -149,12 +149,17 @@ module.exports = {
           '0%': { opacity: '0', transform: 'translateX(16px)' },
           '100%': { opacity: '1', transform: 'translateX(0)' },
         },
+        'qr-scan': {
+          '0%, 100%': { top: '8%' },
+          '50%': { top: '88%' },
+        },
       },
       animation: {
         skeleton: 'skeleton 1.6s ease-in-out infinite',
         rise: 'rise 220ms cubic-bezier(0.2, 0, 0, 1) both',
         'slide-in-left': 'slide-in-left 220ms cubic-bezier(0.2, 0, 0, 1) both',
         'slide-in-right': 'slide-in-right 220ms cubic-bezier(0.2, 0, 0, 1) both',
+        'qr-scan': 'qr-scan 2.4s ease-in-out infinite',
       },
     },
   },
