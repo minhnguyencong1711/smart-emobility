@@ -1,4 +1,7 @@
+import { useState } from 'react';
+
 import { CheckCircleIcon, QrCodeIcon } from '@/components/icons';
+import { QrCodeCard, QrScannerViewport } from '@/components/shared';
 import {
   Badge,
   Button,
@@ -8,6 +11,7 @@ import {
   StepNav,
 } from '@/components/ui';
 import { usePagination } from '@/hooks';
+import { buildWorkTicketQrPayload } from '@/utils/qr-payload';
 
 export const TICKET_EV_ITEMS = [
   { code: 'XMD-123', soc: 78, status: 'AVAILABLE' },
@@ -30,6 +34,7 @@ export function WorkTicketPanel({
   onScanAll,
   onCloseTicket,
   onVerifySingle,
+  onScanQrPayload,
   onReportStatus,
 }: {
   ticketStep: 0 | 1 | 2;
@@ -39,12 +44,21 @@ export function WorkTicketPanel({
   onScanAll: () => void;
   onCloseTicket: () => void;
   onVerifySingle: (code: string) => void;
+  onScanQrPayload: (rawValue: string) => void;
   onReportStatus: (code: string, status: string, soc: number) => void;
 }) {
   const { page, totalPages, totalItems, pageItems, setPage } = usePagination(
     TICKET_EV_ITEMS,
     5,
   );
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+
+  const ticketQrPayload = buildWorkTicketQrPayload({
+    orderCode: 'ORD-6767',
+    route: 'HUB-KB03->HUB-ST01',
+    count: TICKET_EV_ITEMS.length,
+  });
 
   return (
     <div className="space-y-5">
@@ -88,18 +102,40 @@ export function WorkTicketPanel({
             </Badge>
           </div>
 
-          <div className="flex size-44 items-center justify-center rounded-lg border-2 border-dashed border-primary/40 bg-surface p-3 text-navy shadow-card">
-            <QrCodeIcon size={120} />
-          </div>
+          {scannerOpen ? (
+            <QrScannerViewport
+              className="w-full"
+              badgeText="CREW QR SCANNER"
+              active={cameraActive}
+              onActiveChange={setCameraActive}
+              onScanResult={onScanQrPayload}
+              hintText="Scan or upload an EV QR code (e.g. XMD-125)."
+            />
+          ) : (
+            <QrCodeCard
+              value={ticketQrPayload}
+              size={156}
+              caption="ORD-6767 · HUB-KB03 → HUB-ST01"
+              downloadable
+              downloadFileName="ORD-6767-ticket.png"
+            />
+          )}
 
           <div className="w-full space-y-2">
             <Button
               variant="secondary"
               fullWidth
               leadingIcon={<QrCodeIcon size={15} />}
-              onClick={onScanNext}
+              onClick={() => {
+                setScannerOpen((prev) => !prev);
+                setCameraActive(false);
+              }}
             >
-              Scan EV to Verify
+              {scannerOpen ? 'Show Work Ticket QR' : 'Open Live QR Scanner'}
+            </Button>
+
+            <Button variant="secondary" fullWidth onClick={onScanNext}>
+              Verify Next Unscanned EV
             </Button>
 
             <Button variant="secondary" fullWidth onClick={onScanAll}>

@@ -10,6 +10,8 @@ import {
 } from '@/components/icons';
 import { Badge, Button, Callout, PageHeader, StatCard } from '@/components/ui';
 import { useMobilityStore, useToastStore } from '@/stores';
+import { formatClockSeconds } from '@/utils/formatters';
+import { buildVehicleQrPayload, parseVehicleQrCode } from '@/utils/qr-payload';
 
 import {
   UnlockErrorView,
@@ -35,14 +37,21 @@ function VehicleUnlockPage() {
   } = useMobilityStore();
   const pushToast = useToastStore((s) => s.pushToast);
 
-  const [scanState, setScanState] = useState<ScanViewState>('SCANNER');
-  const [torchOn, setTorchOn] = useState(false);
-  const [manualCode, setManualCode] = useState('QR-VNU-EV102');
-
   const targetVehicle =
     sharedVehicles.find((v) => v.id === activeVehicleHold?.vehicleId) ??
     sharedVehicles[0];
   const targetHub = hubs.find((h) => h.id === targetVehicle.hubId) ?? hubs[0];
+
+  const [scanState, setScanState] = useState<ScanViewState>('SCANNER');
+  const [cameraActive, setCameraActive] = useState(false);
+  const [scannedMismatch, setScannedMismatch] = useState<string | null>(null);
+  const [manualCode, setManualCode] = useState(() =>
+    buildVehicleQrPayload(targetVehicle.code, targetHub.code),
+  );
+
+  useEffect(() => {
+    setManualCode(buildVehicleQrPayload(targetVehicle.code, targetHub.code));
+  }, [targetVehicle.code, targetHub.code]);
 
   useEffect(() => {
     if (scanState !== 'UNLOCKING') return;
@@ -51,7 +60,7 @@ function VehicleUnlockPage() {
       pushToast({
         tone: 'ok',
         title: `Vehicle ${targetVehicle.code} unlocked`,
-        description: 'Trip T-2408 is now active. Ride safely!',
+        description: 'Your shared EV trip is now active. Ride safely!',
       });
       navigate({ to: '/student/vehicles/trip' });
     }, 1500);
@@ -63,6 +72,23 @@ function VehicleUnlockPage() {
     targetVehicle.code,
     navigate,
   ]);
+
+  function handleVerifyCode(rawValue: string) {
+    setCameraActive(false);
+    const parsedCode = parseVehicleQrCode(rawValue);
+    if (parsedCode === targetVehicle.code.toUpperCase()) {
+      setScannedMismatch(null);
+      setScanState('UNLOCKING');
+      return;
+    }
+    setScannedMismatch(rawValue.trim() || '(empty)');
+    setScanState('ERROR');
+    pushToast({
+      tone: 'danger',
+      title: 'QR verification failed',
+      description: `Scanned "${rawValue.trim() || 'empty'}" does not match ${targetVehicle.code}.`,
+    });
+  }
 
   return (
     <div className="flex flex-col">
@@ -100,13 +126,13 @@ function VehicleUnlockPage() {
           <Callout
             tone="info"
             title={`Previewing QR Unlock for ${targetVehicle.code}`}
-            description="Create a reservation hold or use the simulated QR scanner below to start your trip."
+            description="Create a reservation hold first or scan the vehicle QR sticker below to start your trip."
             action={
               <Button
                 size="sm"
                 variant="primary"
-                onClick={() => {
-                  const res = reserveVehicle(
+                onClick={async () => {
+                  const res = await reserveVehicle(
                     targetVehicle.id,
                     '24 Oct 2026',
                     '10:30 AM',
@@ -140,7 +166,7 @@ function VehicleUnlockPage() {
             iconTone="primary"
             progress={100}
             progressTone="primary"
-            footerLeft={`Rental category: ${targetVehicle.type === 'E_BIKE' ? 'Electric bicycle' : 'E-MC'}`}
+            footerLeft={`Category: ${targetVehicle.type === 'E_BIKE' ? 'Electric bicycle' : 'E-Motorcycle'}`}
             footerRight="Ready to scan"
             footerRightTone="eco"
           />
@@ -172,7 +198,10 @@ function VehicleUnlockPage() {
           />
           <StatCard
             title="Reservation Grace Period"
-            value="9:50"
+            value={formatClockSeconds(
+              activeVehicleHold?.remainingSeconds ??
+                policyConfig.gracePeriodMins * 60,
+            )}
             denominator="remaining"
             badgeText="Configurable"
             badgeTone="warn"
@@ -189,12 +218,18 @@ function VehicleUnlockPage() {
           <UnlockScannerView
             targetVehicle={targetVehicle}
             targetHub={targetHub}
-            torchOn={torchOn}
+            cameraActive={cameraActive}
             manualCode={manualCode}
-            onToggleTorch={() => setTorchOn((v) => !v)}
+            onCameraActiveChange={setCameraActive}
             onManualCodeChange={setManualCode}
-            onSimulateScan={() => setScanState('UNLOCKING')}
-            onSimulateError={() => setScanState('ERROR')}
+            onVerifyCode={handleVerifyCode}
+            onScanError={(msg) =>
+              pushToast({
+                tone: 'warn',
+                title: 'Scanner Notice',
+                description: msg,
+              })
+            }
           />
         ) : null}
 
@@ -208,6 +243,7 @@ function VehicleUnlockPage() {
         {scanState === 'ERROR' ? (
           <UnlockErrorView
             targetVehicle={targetVehicle}
+            scannedCode={scannedMismatch}
             onRequestAssistance={() =>
               pushToast({
                 tone: 'info',

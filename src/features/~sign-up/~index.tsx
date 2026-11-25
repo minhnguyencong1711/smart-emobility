@@ -36,7 +36,7 @@ function SignUpPage() {
 
   const strength = useMemo(() => getPasswordStrength(password), [password]);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!fullName.trim()) {
       setFormError('Please enter your full name.');
@@ -68,12 +68,16 @@ function SignUpPage() {
     }
 
     setFormError(null);
-    registerAccount({
+    const res = await registerAccount({
       fullName,
       studentId: studentId.trim(),
       email,
       password,
     });
+    if (!res.ok) {
+      setFormError(res.error ?? 'Unable to create account.');
+      return;
+    }
     pushToast({
       tone: 'ok',
       title: 'Account created',
@@ -104,8 +108,8 @@ function SignUpPage() {
             variant="secondary"
             fullWidth
             leadingIcon={<GoogleLogo size={18} />}
-            onClick={() => {
-              loginWithGoogle();
+            onClick={async () => {
+              await loginWithGoogle();
               pushToast({
                 tone: 'ok',
                 title: 'Signed up with Google',

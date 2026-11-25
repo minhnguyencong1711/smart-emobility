@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 
 import { PageHeader, SearchBar, Tabs } from '@/components/ui';
 import { useAuthStore, useMobilityStore, useToastStore } from '@/stores';
+import { parseVehicleQrCode } from '@/utils/qr-payload';
 
 import { DispatchSpatialPanel } from './components/dispatch-spatial-panel';
 import {
@@ -176,7 +177,31 @@ function RedistributionPage() {
                   'Delivered EVs verified and destination bays updated.',
               });
             }}
-            onVerifySingle={(code) => setVerifiedEvs((prev) => [...prev, code])}
+            onVerifySingle={(code) =>
+              setVerifiedEvs((prev) =>
+                prev.includes(code) ? prev : [...prev, code],
+              )
+            }
+            onScanQrPayload={(rawValue) => {
+              const code = parseVehicleQrCode(rawValue);
+              const matched = TICKET_EV_ITEMS.find((e) => e.code === code);
+              if (!matched) {
+                pushToast({
+                  tone: 'danger',
+                  title: 'EV QR Not In Work Ticket',
+                  description: `Decoded "${rawValue}" does not belong to ORD-6767.`,
+                });
+                return;
+              }
+              setVerifiedEvs((prev) =>
+                prev.includes(matched.code) ? prev : [...prev, matched.code],
+              );
+              pushToast({
+                tone: 'ok',
+                title: `${matched.code} Verified via QR`,
+                description: `Status ${matched.status} · SoC ${matched.soc}% synced.`,
+              });
+            }}
             onReportStatus={(code, status, soc) =>
               pushToast({
                 tone: 'info',

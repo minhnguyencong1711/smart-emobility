@@ -3,9 +3,8 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ParkingIcon,
-  QrCodeIcon,
 } from '@/components/icons';
-import { DetailRow } from '@/components/shared';
+import { DetailRow, QrCodeCard } from '@/components/shared';
 import {
   Badge,
   Button,
@@ -14,6 +13,7 @@ import {
   StatusPill,
 } from '@/components/ui';
 import type { ActiveParkingAndCharging, MobilityHub } from '@/types';
+import { buildEPassQrPayload } from '@/utils/qr-payload';
 
 export function EPassTicketView({
   activeParking,
@@ -57,9 +57,17 @@ export function EPassTicketView({
         </div>
 
         <div className="flex flex-col items-center rounded-lg border border-primary/25 bg-surface-2 p-5 text-center">
-          <div className="flex size-44 items-center justify-center rounded-lg border-2 border-dashed border-primary/40 bg-surface text-navy shadow-card">
-            <QrCodeIcon size={120} />
-          </div>
+          <QrCodeCard
+            value={buildEPassQrPayload({
+              reservationId: activeParking?.reservationId ?? 'SES-24081',
+              hubCode: hub.code,
+              bayCode: activeParking?.bayCode ?? 'BAY-A02',
+              pinCode: activeParking?.pinCode ?? '376492',
+            })}
+            size={160}
+            downloadable
+            downloadFileName={`${activeParking?.reservationId ?? 'EPASS'}-qr.png`}
+          />
           <p className="mt-3 text-label font-bold uppercase tracking-wider text-ink-3">
             6-Digit Gate PIN
           </p>

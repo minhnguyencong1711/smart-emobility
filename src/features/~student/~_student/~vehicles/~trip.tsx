@@ -69,7 +69,7 @@ function ActiveTripReturnPage() {
     Math.round((activeVehicleHold?.elapsedSeconds ?? 27 * 60) / 60),
   );
 
-  function handleConfirmReturn() {
+  async function handleConfirmReturn() {
     if (!physicalLockChecked) {
       pushToast({
         tone: 'warn',
@@ -80,7 +80,11 @@ function ActiveTripReturnPage() {
       return;
     }
 
-    const res = completeVehicleReturn(destinationHubId, hasFault, remarks);
+    const res = await completeVehicleReturn(
+      destinationHubId,
+      hasFault,
+      remarks,
+    );
     if (!res.ok) {
       pushToast({
         tone: 'danger',

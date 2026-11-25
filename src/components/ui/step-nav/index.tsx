@@ -11,6 +11,7 @@ type StepNavProps = {
   steps: StepItem[];
   currentStepIndex: number;
   onStepClick?: (index: number) => void;
+  align?: 'center' | 'start';
   className?: string;
 };
 
@@ -18,11 +19,17 @@ export function StepNav({
   steps,
   currentStepIndex,
   onStepClick,
+  align = 'center',
   className,
 }: StepNavProps) {
   return (
     <nav aria-label="Workflow steps" className={cn('w-full', className)}>
-      <ol className="flex flex-wrap items-center gap-2 sm:gap-3">
+      <ol
+        className={cn(
+          'flex flex-wrap items-center gap-2 sm:gap-3',
+          align === 'center' ? 'justify-center' : 'justify-start',
+        )}
+      >
         {steps.map((step, idx) => {
           const isCompleted = idx < currentStepIndex;
           const isCurrent = idx === currentStepIndex;

@@ -1,5 +1,6 @@
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 
+import { BackendSync } from '@/components/shared';
 import { ToastViewport } from '@/components/ui';
 
 import { routeTree } from './routeTree.gen';
@@ -18,6 +19,7 @@ declare module '@tanstack/react-router' {
 export function App() {
   return (
     <>
+      <BackendSync />
       <RouterProvider router={router} />
       <ToastViewport />
     </>

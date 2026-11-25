@@ -1,33 +1,54 @@
-# Smart E-Mobility Hub — VNU-HCM Frontend
+# Smart E-Mobility Hub — VNU-HCM Full-Stack Platform
 
-Web frontend for **Smart E-Mobility Hub**, an electric mobility coordination, smart charging, and dynamic load balancing (DLB) platform for the **Vietnam National University, Ho Chi Minh City (VNU-HCM) Urban Area** (HCMUT CO3001 Software Engineering, Class CC03, Group 06).
+Web frontend + NestJS backend for **Smart E-Mobility Hub**, an electric mobility coordination, smart charging, and dynamic load balancing (DLB) platform for the **Vietnam National University, Ho Chi Minh City (VNU-HCM) Urban Area** (HCMUT CO3001 Software Engineering, Class CC03, Group 06).
 
 ---
 
 ## Tech Stack
 
-- **Framework:** React 19 + TypeScript + Vite 6
-- **Routing:** TanStack Router v1 (file-based kebab-case routes with `~` prefix)
-- **Styling & Design System:** Tailwind CSS v3 + CSS semantic design tokens (`src/index.css`, `tailwind.config.cjs`)
-- **State Management:** Zustand 5 domain slices (`src/stores/mobility/`, `src/stores/auth-store.ts`)
-- **Interactive Spatial Map:** Leaflet + OpenStreetMap tiles pinned to real VNU-HCM Urban Area GPS coordinates (`Suoi Tien Metro Station`, `Dormitory Zone A`, `Dormitory Zone B`, `HCMUT Campus 2`, `Central Library`)
-- **Tooling:** Yarn 1.x, ESLint 9, Prettier 3
+- **Frontend:** React 19 + TypeScript + Vite 6 + TanStack Router v1 (`~` prefix routes) + Tailwind CSS v3 + Zustand 5 + Leaflet
+- **Backend (`backend/`):** NestJS 10 + TypeScript + Prisma ORM (`PostgreSQL` on **Neon Serverless Postgres** / local Docker Postgres) + JWT (`passport-jwt`) + Swagger OpenAPI
+- **Architecture (aligned with Submission 3):** Clean/Hexagonal Modular Monolith (`Controller -> Service -> Repository -> Prisma`) + Outbound Hardware Ports (`IBarrierGatePort`, `IChargingStationControllerPort`, `INotificationPort`) with `SimulatedHardwareAdapter`.
+- **Tooling:** Yarn 1.x, Jest (backend unit tests), ESLint 9, Prettier 3
 
 ---
 
-## Prerequisites & Quickstart
+## Prerequisites & Full-Stack Quickstart
 
 - **Node.js:** `>= 20.x` (tested on `v22.20.0`)
 - **Yarn:** `>= 1.22.x`
+- **Database:** Neon Serverless PostgreSQL (or local Docker Postgres via `docker-compose.yml`)
 
 ```bash
-# 1. Install dependencies
+# 1. Install frontend and backend dependencies
 yarn install
+cd backend && yarn install && cd ..
 
-# 2. Start local development server (http://localhost:3000)
+# 2. Configure database & JWT environment variables
+copy backend\.env.example backend\.env
+# Edit backend/.env and paste your Neon PostgreSQL connection string into DATABASE_URL and DIRECT_URL
+
+# 3. Generate Prisma Client, push schema to PostgreSQL, and seed baseline VNU-HCM data
+yarn db:push
+yarn db:seed
+
+# 4. Run Backend (http://localhost:4000, Swagger at http://localhost:4000/api/docs)
+yarn dev:be
+
+# 5. In a second terminal, run Frontend (http://localhost:3000, proxies /api -> :4000)
 yarn dev --port 3000
+```
 
-# 3. Type-check, lint, and build for production
+> **Graceful Offline Mode:** If the backend is not started, the frontend automatically falls back to local Zustand state so UI demos still run. When the backend is online, mutations persist to PostgreSQL and sync across open tabs every 5 seconds.
+
+### Verification Commands
+
+```bash
+# Backend unit tests & NestJS build
+yarn test:be
+yarn build:be
+
+# Frontend type-check, lint, and production build
 yarn check-types
 yarn lint
 yarn build
@@ -35,9 +56,9 @@ yarn build
 
 ---
 
-## Mock Accounts (Local Authentication)
+## Demo Accounts (Seeded in PostgreSQL & Local Fallback)
 
-All authentication flows (Login, 5-attempt Lockout, Sign Up, OTP Reset Password) run against the client-side credential store in `src/data/accounts.seed.ts` and `src/stores/auth-store.ts`. Signed-in sessions persist in `localStorage` under `emobility_auth_email`.
+All authentication flows (Login, 5-attempt Lockout with 15-min cooldown, Sign Up, OTP Reset Password) run against PostgreSQL `/api/v1/auth/*` when online (with local Zustand fallback offline). Passwords are stored hashed with `bcryptjs`.
 
 | Role | Email | Password | Display Name | Default Landing Route |
 | --- | --- | --- | --- | --- |
@@ -47,7 +68,7 @@ All authentication flows (Login, 5-attempt Lockout, Sign Up, OTP Reset Password)
 | **Field Operations Crew** | `crew@vnuhcm.edu.vn` | `crew123` | Đinh Phạm Ngọc Phước | `/operator/redistribution` |
 | **System Administrator** | `admin@hcmut.edu.vn` | `admin123` | Nguyễn Đức Trọng | `/operator/monitoring` |
 
-> Signing up on `/sign-up` registers a temporary in-memory `STUDENT` account for the current browser session. Entering wrong credentials 5 consecutive times triggers the `15:00` temporary lockout screen, which can be cleared via password reset or lockout reset.
+> Signing up on `/sign-up` registers a `STUDENT` account. Entering wrong credentials 5 consecutive times triggers a 15-minute lockout (`lockedUntil` persisted in PostgreSQL), which can be cleared via `/reset-password` (demo OTP accepted: any 6-digit code, default mock `248190`).
 
 ---
 

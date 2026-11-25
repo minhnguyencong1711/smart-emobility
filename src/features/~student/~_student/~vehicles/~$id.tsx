@@ -56,8 +56,8 @@ function VehicleDetailPage() {
       ? 'Expired'
       : 'Vehicle Details';
 
-  function handleReserve() {
-    const res = reserveVehicle(vehicle.id, pickupDate, pickupTime);
+  async function handleReserve() {
+    const res = await reserveVehicle(vehicle.id, pickupDate, pickupTime);
     if (!res.ok) {
       pushToast({
         tone: 'warn',
