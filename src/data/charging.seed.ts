@@ -9,7 +9,7 @@ export const INITIAL_CHARGING_POINTS: ChargingPoint[] = [
   {
     id: 'cp-b04',
     code: 'CP-B04',
-    hubId: 'hub-dorm-a',
+    hubId: 'hub-dorm-b',
     connectorType: 'TYPE_2',
     maxPowerKw: 22,
     currentPowerKw: 0,

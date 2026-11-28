@@ -12,6 +12,7 @@ import {
   Slider,
 } from '@/components/ui';
 import { usePagination } from '@/hooks';
+import { isTerminalRedistributionStatus } from '@/services';
 import type { MobilityHub, RedistributionOrder } from '@/types';
 
 export function DispatchSpatialPanel({
@@ -29,6 +30,7 @@ export function DispatchSpatialPanel({
   onAssignedCrewChange,
   onDispatch,
   onUpdateOrderStatus,
+  onOpenWorkTicket,
 }: {
   hubs: MobilityHub[];
   redistributionOrders: RedistributionOrder[];
@@ -47,6 +49,7 @@ export function DispatchSpatialPanel({
     orderId: string,
     status: RedistributionOrder['status'],
   ) => void;
+  onOpenWorkTicket: (orderId: string) => void;
 }) {
   const { page, totalPages, totalItems, pageItems, setPage } = usePagination(
     redistributionOrders,
@@ -145,6 +148,7 @@ export function DispatchSpatialPanel({
                 const dst =
                   hubs.find((h) => h.id === order.destinationHubId)
                     ?.shortName ?? order.destinationHubId;
+                const isDone = isTerminalRedistributionStatus(order.status);
                 return (
                   <Card key={order.id} padding="sm" className="space-y-2.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -162,7 +166,8 @@ export function DispatchSpatialPanel({
                         tone={
                           order.status === 'COMPLETED'
                             ? 'ok'
-                            : order.status === 'REROUTED'
+                            : order.status === 'REROUTED' ||
+                                order.status === 'PARTIAL_COMPLETED'
                               ? 'warn'
                               : 'primary'
                         }
@@ -174,6 +179,14 @@ export function DispatchSpatialPanel({
                       <Button
                         size="sm"
                         variant="secondary"
+                        onClick={() => onOpenWorkTicket(order.id)}
+                      >
+                        Open Ticket
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={isDone || order.status === 'REROUTED'}
                         onClick={() =>
                           onUpdateOrderStatus(order.id, 'REROUTED')
                         }
@@ -183,6 +196,7 @@ export function DispatchSpatialPanel({
                       <Button
                         size="sm"
                         variant="secondary"
+                        disabled={isDone}
                         onClick={() =>
                           onUpdateOrderStatus(order.id, 'PARTIAL_COMPLETED')
                         }
@@ -191,12 +205,17 @@ export function DispatchSpatialPanel({
                       </Button>
                       <Button
                         size="sm"
-                        variant="primary"
+                        variant={isDone ? 'secondary' : 'primary'}
+                        disabled={isDone}
                         onClick={() =>
                           onUpdateOrderStatus(order.id, 'COMPLETED')
                         }
                       >
-                        Complete Order
+                        {order.status === 'COMPLETED'
+                          ? 'Completed'
+                          : order.status === 'PARTIAL_COMPLETED'
+                            ? 'Partially Completed'
+                            : 'Complete Order'}
                       </Button>
                     </div>
                   </Card>

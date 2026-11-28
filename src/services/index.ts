@@ -14,8 +14,10 @@ export {
 export {
   applyIncidentIsolation,
   applyRedistributionHubTransfers,
+  applyRedistributionOrdersToHubs,
   applySimulationAdvisoryApproval,
   buildRedistributionOrder,
+  isTerminalRedistributionStatus,
 } from './operations.service';
 export {
   buildActiveTripFromHold,

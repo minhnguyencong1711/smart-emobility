@@ -141,9 +141,13 @@ export const backendApi = {
 
   // Incidents
   listIncidents: () => apiRequest<IncidentRecord[]>('/incidents'),
-  isolateIncident: (incidentId: string, assignedCrew?: string) =>
+  isolateIncident: (
+    incidentId: string,
+    assignedCrew?: string,
+    dispatchNotes?: string,
+  ) =>
     apiRequest<IncidentRecord>(`/incidents/${incidentId}/isolate`, {
       method: 'POST',
-      body: JSON.stringify({ assignedCrew }),
+      body: JSON.stringify({ assignedCrew, dispatchNotes }),
     }),
 };

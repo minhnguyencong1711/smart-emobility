@@ -58,12 +58,22 @@ export type RentalSlice = {
   clearReturnedTrip: () => void;
 };
 
+export type OverdueVehicleRecord = {
+  plate: string;
+  bay: string;
+  owner: string;
+  hubId: string;
+  overdueMins: number;
+};
+
 export type ChargingSlice = {
   chargingPoints: ChargingPoint[];
   chargingQueue: ChargingQueueEntry[];
   activeParking: ActiveParkingAndCharging | null;
   dlbMode: DlbMode;
   chargingScheduleApplied: boolean;
+  chargingScheduleGeneratedAt: string;
+  chargingScheduleOptimized: boolean;
   dlbActivityLogs: DlbLogEntry[];
   setChargingSessionStatus: (
     status: ChargingSessionStatus,
@@ -84,13 +94,22 @@ export type ChargingSlice = {
   stopChargingKeepParking: () => void;
   exitHubReleaseBay: () => void;
   setDlbMode: (mode: DlbMode) => void;
+  generateChargingSchedule: () => void;
   applyChargingSchedule: () => void;
 };
 
 export type OperationsSlice = {
   incidents: IncidentRecord[];
   redistributionOrders: RedistributionOrder[];
-  isolateIncidentEquipment: (incidentId: string, assignedCrew?: string) => void;
+  overdueVehicles: OverdueVehicleRecord[];
+  warnedOverduePlates: string[];
+  isolateIncidentEquipment: (
+    incidentId: string,
+    assignedCrew?: string,
+    dispatchNotes?: string,
+  ) => void;
+  warnOverdueVehicle: (plate: string) => void;
+  ejectOverdueParkingBay: (hubId: string, plate: string) => void;
   createRedistributionOrder: (payload: {
     sourceHubId: string;
     destinationHubId: string;

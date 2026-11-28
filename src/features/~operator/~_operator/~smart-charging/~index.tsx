@@ -16,9 +16,12 @@ function SmartChargingPage() {
     chargingQueue,
     dlbMode,
     chargingScheduleApplied,
+    chargingScheduleGeneratedAt,
+    chargingScheduleOptimized,
     dlbActivityLogs,
     policyConfig,
     setDlbMode,
+    generateChargingSchedule,
     applyChargingSchedule,
   } = useMobilityStore();
   const pushToast = useToastStore((s) => s.pushToast);
@@ -30,7 +33,6 @@ function SmartChargingPage() {
     searchStr.includes('tab=schedule') ? 'schedule' : 'dlb',
   );
   const [searchQuery, setSearchQuery] = useState('');
-  const [generatedAt, setGeneratedAt] = useState('08:00–10:30');
 
   useEffect(() => {
     if (searchStr.includes('tab=schedule')) {
@@ -91,10 +93,11 @@ function SmartChargingPage() {
             chargingQueue={chargingQueue}
             tier2Items={tier2Items}
             tier3Items={tier3Items}
-            generatedAt={generatedAt}
+            generatedAt={chargingScheduleGeneratedAt}
+            scheduleOptimized={chargingScheduleOptimized}
             chargingScheduleApplied={chargingScheduleApplied}
             onGenerateSchedule={() => {
-              setGeneratedAt('08:00–10:30 (Optimized)');
+              generateChargingSchedule();
               pushToast({
                 tone: 'info',
                 title: 'Charging schedule generated',

@@ -146,6 +146,32 @@ export class ParkingChargingService {
 
     const kw = getNominalKw(dto.connectorType);
     return this.repo.runTransaction(async (tx) => {
+      if (
+        session.chargingPortId &&
+        session.chargingPortId !== dto.portId
+      ) {
+        const prevPort = await tx.chargingPoint.findUnique({
+          where: { id: session.chargingPortId },
+        });
+        if (
+          prevPort &&
+          prevPort.status !== 'ISOLATED' &&
+          prevPort.status !== 'FAULTY'
+        ) {
+          await tx.chargingPoint.update({
+            where: { id: prevPort.id },
+            data: { status: 'AVAILABLE', currentPowerKw: 0 },
+          });
+        }
+      }
+
+      if (port && port.status !== 'ISOLATED' && port.status !== 'FAULTY') {
+        await tx.chargingPoint.update({
+          where: { id: port.id },
+          data: { status: 'CHARGING', currentPowerKw: kw },
+        });
+      }
+
       const updated = await tx.parkingChargingSession.update({
         where: { id: session.id },
         data: {
@@ -171,6 +197,18 @@ export class ParkingChargingService {
     const nextSoc = Math.min(session.targetSocPercent, session.socPercent + 10);
     const done = nextSoc >= session.targetSocPercent;
     return this.repo.runTransaction(async (tx) => {
+      if (done && session.chargingPortId) {
+        const port = await tx.chargingPoint.findUnique({
+          where: { id: session.chargingPortId },
+        });
+        if (port && port.status !== 'ISOLATED' && port.status !== 'FAULTY') {
+          await tx.chargingPoint.update({
+            where: { id: port.id },
+            data: { status: 'AVAILABLE', currentPowerKw: 0 },
+          });
+        }
+      }
+
       const updated = await tx.parkingChargingSession.update({
         where: { id: session.id },
         data: {
@@ -190,16 +228,71 @@ export class ParkingChargingService {
     if (!session) {
       throw new NotFoundException('No active charging session found.');
     }
+    const kw = getNominalKw(session.connectorType);
     return this.repo.runTransaction(async (tx) => {
+      let nextPortId = session.chargingPortId;
+      let nextPortCode = session.chargingPortCode;
+
+      if (dto.mode === 'REASSIGN' && dto.newPortCode) {
+        const targetPort = await tx.chargingPoint.findUnique({
+          where: { code: dto.newPortCode },
+        });
+        if (
+          targetPort &&
+          (targetPort.status === 'ISOLATED' || targetPort.status === 'FAULTY')
+        ) {
+          throw new ConflictException(
+            `Charging port ${targetPort.code} is ${targetPort.status} and cannot accept reassigned sessions.`,
+          );
+        }
+        if (session.chargingPortId) {
+          const oldPort = await tx.chargingPoint.findUnique({
+            where: { id: session.chargingPortId },
+          });
+          if (
+            oldPort &&
+            oldPort.status !== 'ISOLATED' &&
+            oldPort.status !== 'FAULTY'
+          ) {
+            await tx.chargingPoint.update({
+              where: { id: oldPort.id },
+              data: { status: 'AVAILABLE', currentPowerKw: 0 },
+            });
+          }
+        }
+        if (targetPort) {
+          nextPortId = targetPort.id;
+          nextPortCode = targetPort.code;
+          await tx.chargingPoint.update({
+            where: { id: targetPort.id },
+            data: { status: 'CHARGING', currentPowerKw: kw },
+          });
+        } else {
+          nextPortCode = dto.newPortCode;
+        }
+      } else if (session.chargingPortId) {
+        const currentPort = await tx.chargingPoint.findUnique({
+          where: { id: session.chargingPortId },
+        });
+        if (
+          currentPort &&
+          currentPort.status !== 'ISOLATED' &&
+          currentPort.status !== 'FAULTY'
+        ) {
+          await tx.chargingPoint.update({
+            where: { id: currentPort.id },
+            data: { status: 'CHARGING', currentPowerKw: kw },
+          });
+        }
+      }
+
       const updated = await tx.parkingChargingSession.update({
         where: { id: session.id },
         data: {
           chargingStatus: 'CHARGING',
-          currentKw: getNominalKw(session.connectorType),
-          chargingPortCode:
-            dto.mode === 'REASSIGN' && dto.newPortCode
-              ? dto.newPortCode
-              : session.chargingPortCode,
+          currentKw: kw,
+          chargingPortId: nextPortId,
+          chargingPortCode: nextPortCode,
           interruptionReason: null,
         },
       });
@@ -211,6 +304,17 @@ export class ParkingChargingService {
     const session = await this.repo.findActiveHoldByUser(userId);
     if (!session) return null;
     return this.repo.runTransaction(async (tx) => {
+      if (session.chargingPortId) {
+        const port = await tx.chargingPoint.findUnique({
+          where: { id: session.chargingPortId },
+        });
+        if (port && port.status !== 'ISOLATED' && port.status !== 'FAULTY') {
+          await tx.chargingPoint.update({
+            where: { id: port.id },
+            data: { status: 'AVAILABLE', currentPowerKw: 0 },
+          });
+        }
+      }
       const updated = await tx.parkingChargingSession.update({
         where: { id: session.id },
         data: { chargingStatus: 'CHARGING_COMPLETED', currentKw: 0 },
@@ -223,6 +327,17 @@ export class ParkingChargingService {
     const session = await this.repo.findActiveHoldByUser(userId);
     if (!session) return null;
     return this.repo.runTransaction(async (tx) => {
+      if (session.chargingPortId) {
+        const port = await tx.chargingPoint.findUnique({
+          where: { id: session.chargingPortId },
+        });
+        if (port && port.status !== 'ISOLATED' && port.status !== 'FAULTY') {
+          await tx.chargingPoint.update({
+            where: { id: port.id },
+            data: { status: 'AVAILABLE', currentPowerKw: 0 },
+          });
+        }
+      }
       const hub = await tx.mobilityHub.findUnique({
         where: { id: session.hubId },
       });

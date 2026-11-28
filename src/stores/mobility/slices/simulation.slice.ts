@@ -3,6 +3,8 @@ import { applySimulationAdvisoryApproval } from '@/services';
 
 import type { MobilitySliceCreator, SimulationSlice } from '../types';
 
+import { persistRedistributionOrders } from './operations.slice';
+
 export const createSimulationSlice: MobilitySliceCreator<SimulationSlice> = (
   set,
 ) => ({
@@ -14,13 +16,16 @@ export const createSimulationSlice: MobilitySliceCreator<SimulationSlice> = (
     })),
 
   approveSimulationRecommendationToM4: (simId, recId) =>
-    set((state) =>
-      applySimulationAdvisoryApproval({
+    set((state) => {
+      const next = applySimulationAdvisoryApproval({
         simId,
         recId,
         simulations: state.simulations,
         redistributionOrders: state.redistributionOrders,
         dlbActivityLogs: state.dlbActivityLogs,
-      }),
-    ),
+        hubs: state.hubs,
+      });
+      persistRedistributionOrders(next.redistributionOrders);
+      return next;
+    }),
 });

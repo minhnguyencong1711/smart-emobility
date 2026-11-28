@@ -50,7 +50,7 @@ export const SEED_CHARGING_POINTS = [
   {
     id: 'cp-b04',
     code: 'CP-B04',
-    hubId: 'hub-dorm-a',
+    hubId: 'hub-dorm-b',
     connectorType: 'TYPE_2',
     maxPowerKw: 22,
     currentPowerKw: 0,

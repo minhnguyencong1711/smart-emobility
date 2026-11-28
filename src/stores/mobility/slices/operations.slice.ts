@@ -5,22 +5,99 @@ import {
   backendApi,
   buildRedistributionOrder,
   getStoredAccessToken,
+  isTerminalRedistributionStatus,
 } from '@/services';
+import type { RedistributionOrder } from '@/types';
 
-import type { MobilitySliceCreator, OperationsSlice } from '../types';
+import type {
+  MobilitySliceCreator,
+  OperationsSlice,
+  OverdueVehicleRecord,
+} from '../types';
+
+export const INITIAL_OVERDUE_VEHICLES: OverdueVehicleRecord[] = [
+  {
+    plate: '59A-412.88',
+    bay: 'BAY-B02',
+    owner: 'Tran Minh Khoa',
+    hubId: 'hub-dorm-b',
+    overdueMins: 42,
+  },
+  {
+    plate: '51H-904.11',
+    bay: 'BAY-B07',
+    owner: 'Le Hoang Nam',
+    hubId: 'hub-dorm-b',
+    overdueMins: 28,
+  },
+  {
+    plate: '59A-810.22',
+    bay: 'BAY-A03',
+    owner: 'Pham Gia Huy',
+    hubId: 'hub-dorm-a',
+    overdueMins: 19,
+  },
+  {
+    plate: '51H-331.09',
+    bay: 'BAY-ST04',
+    owner: 'Vo Ngoc Han',
+    hubId: 'hub-suoi-tien',
+    overdueMins: 35,
+  },
+];
+
+export const REDISTRIBUTION_STORAGE_KEY = 'emobility_redistribution_orders';
+
+export function readStoredRedistributionOrders(): RedistributionOrder[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = window.localStorage.getItem(REDISTRIBUTION_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as RedistributionOrder[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Fallback to initial seed orders
+    }
+  }
+  return INITIAL_REDISTRIBUTION_ORDERS;
+}
+
+export function persistRedistributionOrders(
+  orders: RedistributionOrder[] | null,
+) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (orders) {
+      window.localStorage.setItem(
+        REDISTRIBUTION_STORAGE_KEY,
+        JSON.stringify(orders),
+      );
+    } else {
+      window.localStorage.removeItem(REDISTRIBUTION_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 export const createOperationsSlice: MobilitySliceCreator<OperationsSlice> = (
   set,
   get,
 ) => ({
   incidents: INITIAL_INCIDENTS,
-  redistributionOrders: INITIAL_REDISTRIBUTION_ORDERS,
+  redistributionOrders: readStoredRedistributionOrders(),
+  overdueVehicles: INITIAL_OVERDUE_VEHICLES,
+  warnedOverduePlates: [],
 
-  isolateIncidentEquipment: (incidentId, assignedCrew) => {
+  isolateIncidentEquipment: (incidentId, assignedCrew, dispatchNotes) => {
     set((state) =>
       applyIncidentIsolation({
         incidentId,
         assignedCrew,
+        dispatchNotes,
         incidents: state.incidents,
         chargingPoints: state.chargingPoints,
         activeParking: state.activeParking,
@@ -28,11 +105,28 @@ export const createOperationsSlice: MobilitySliceCreator<OperationsSlice> = (
     );
     if (get().backendMode === 'online' && getStoredAccessToken()) {
       void backendApi
-        .isolateIncident(incidentId, assignedCrew)
+        .isolateIncident(incidentId, assignedCrew, dispatchNotes)
         .then(() => get().hydrateFromBackend())
         .catch(() => undefined);
     }
   },
+
+  warnOverdueVehicle: (plate) =>
+    set((state) => ({
+      warnedOverduePlates: state.warnedOverduePlates.includes(plate)
+        ? state.warnedOverduePlates
+        : [...state.warnedOverduePlates, plate],
+    })),
+
+  ejectOverdueParkingBay: (hubId, plate) =>
+    set((state) => ({
+      overdueVehicles: state.overdueVehicles.filter((v) => v.plate !== plate),
+      hubs: state.hubs.map((h) =>
+        h.id === hubId
+          ? { ...h, coreBaysOccupied: Math.max(0, h.coreBaysOccupied - 1) }
+          : h,
+      ),
+    })),
 
   createRedistributionOrder: ({
     sourceHubId,
@@ -65,6 +159,8 @@ export const createOperationsSlice: MobilitySliceCreator<OperationsSlice> = (
       vehicleCount,
       assignedCrew,
     });
+    const nextOrders = [newOrder, ...state.redistributionOrders];
+    persistRedistributionOrders(nextOrders);
 
     set({
       hubs: state.hubs.map((h) =>
@@ -75,7 +171,7 @@ export const createOperationsSlice: MobilitySliceCreator<OperationsSlice> = (
             }
           : h,
       ),
-      redistributionOrders: [newOrder, ...state.redistributionOrders],
+      redistributionOrders: nextOrders,
     });
     return { ok: true };
   },
@@ -83,10 +179,21 @@ export const createOperationsSlice: MobilitySliceCreator<OperationsSlice> = (
   updateRedistributionOrderStatus: (orderId, status) =>
     set((state) => {
       const target = state.redistributionOrders.find((o) => o.id === orderId);
+      if (!target) return state;
+      if (
+        target.status === status ||
+        isTerminalRedistributionStatus(target.status)
+      ) {
+        return state;
+      }
+
+      const nextOrders = state.redistributionOrders.map((o) =>
+        o.id === orderId ? { ...o, status } : o,
+      );
+      persistRedistributionOrders(nextOrders);
+
       return {
-        redistributionOrders: state.redistributionOrders.map((o) =>
-          o.id === orderId ? { ...o, status } : o,
-        ),
+        redistributionOrders: nextOrders,
         hubs: applyRedistributionHubTransfers({
           order: target,
           status,

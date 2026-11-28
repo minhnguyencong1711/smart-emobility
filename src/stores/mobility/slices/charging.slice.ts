@@ -31,6 +31,8 @@ export const createChargingSlice: MobilitySliceCreator<ChargingSlice> = (
   activeParking: INITIAL_ACTIVE_PARKING,
   dlbMode: 'NORMAL',
   chargingScheduleApplied: false,
+  chargingScheduleGeneratedAt: '08:00–10:30',
+  chargingScheduleOptimized: false,
   dlbActivityLogs: INITIAL_DLB_LOGS,
 
   setChargingSessionStatus: (status, reason) =>
@@ -199,6 +201,23 @@ export const createChargingSlice: MobilitySliceCreator<ChargingSlice> = (
         dlbActivityLogs: [transition.nextLog, ...state.dlbActivityLogs],
       };
     }),
+
+  generateChargingSchedule: () =>
+    set((state) => ({
+      chargingScheduleApplied: false,
+      chargingScheduleOptimized: true,
+      chargingScheduleGeneratedAt: '08:00–10:30 (Optimized)',
+      dlbActivityLogs: [
+        {
+          id: `dlb-gen-${Date.now()}`,
+          time: '[09:13:10]',
+          level: 'INFO',
+          message:
+            'Smart schedule optimized: Tier-1/2 prioritized in 08:00–09:00; Tier-3 routine shifted to 09:30–10:30.',
+        },
+        ...state.dlbActivityLogs,
+      ],
+    })),
 
   applyChargingSchedule: () =>
     set((state) => ({

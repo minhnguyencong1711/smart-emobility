@@ -12,11 +12,19 @@ import {
   INITIAL_SHARED_VEHICLES,
   INITIAL_SIMULATIONS,
 } from '@/data';
-import { backendApi, getStoredAccessToken } from '@/services';
+import {
+  applyRedistributionOrdersToHubs,
+  backendApi,
+  getStoredAccessToken,
+} from '@/services';
 
 import { createChargingSlice } from './slices/charging.slice';
 import { createFleetSlice } from './slices/fleet.slice';
-import { createOperationsSlice } from './slices/operations.slice';
+import {
+  createOperationsSlice,
+  INITIAL_OVERDUE_VEHICLES,
+  persistRedistributionOrders,
+} from './slices/operations.slice';
 import { createRentalSlice } from './slices/rental.slice';
 import { createSimulationSlice } from './slices/simulation.slice';
 import type { MobilityState } from './types';
@@ -51,12 +59,21 @@ export const useMobilityStore = create<MobilityState>((set, get, api) => ({
           backendApi.listIncidents(),
         ]);
 
+      const isCriticalDlb = get().dlbMode === 'CRITICAL';
+      const syncedChargingPoints = isCriticalDlb
+        ? chargingPoints.map((cp) =>
+            cp.status === 'CHARGING'
+              ? { ...cp, status: 'THROTTLED' as const, currentPowerKw: 3.7 }
+              : cp,
+          )
+        : chargingPoints;
+
       const patch: Partial<MobilityState> = {
         backendMode: 'online',
         policyConfig,
-        hubs,
+        hubs: applyRedistributionOrdersToHubs(hubs, get().redistributionOrders),
         sharedVehicles,
-        chargingPoints,
+        chargingPoints: syncedChargingPoints,
         incidents,
       };
 
@@ -74,7 +91,37 @@ export const useMobilityStore = create<MobilityState>((set, get, api) => ({
           ? currentHold
           : activeVehicleHold;
         patch.tripHistory = tripHistory;
-        patch.activeParking = activeParking;
+
+        const prevParking = get().activeParking;
+        if (
+          activeParking &&
+          isCriticalDlb &&
+          activeParking.chargingStatus === 'CHARGING'
+        ) {
+          patch.activeParking = {
+            ...activeParking,
+            chargingStatus: 'THROTTLED',
+            currentKw: 3.7,
+            interruptionReason:
+              'Grid demand reached 91% — Tier-3 DLB throttling active (3.7 kW).',
+          };
+        } else if (
+          activeParking &&
+          prevParking &&
+          prevParking.reservationId === activeParking.reservationId &&
+          activeParking.chargingStatus === 'CHARGING' &&
+          (prevParking.chargingStatus === 'THROTTLED' ||
+            prevParking.chargingStatus === 'INTERRUPTED')
+        ) {
+          patch.activeParking = {
+            ...activeParking,
+            chargingStatus: prevParking.chargingStatus,
+            currentKw: prevParking.currentKw,
+            interruptionReason: prevParking.interruptionReason,
+          };
+        } else {
+          patch.activeParking = activeParking;
+        }
       } else {
         patch.activeVehicleHold = null;
       }
@@ -86,6 +133,7 @@ export const useMobilityStore = create<MobilityState>((set, get, api) => ({
   },
 
   resetDemoState: () => {
+    persistRedistributionOrders(null);
     set({
       policyConfig: DEFAULT_POLICY_CONFIG,
       hubs: INITIAL_HUBS,
@@ -99,6 +147,10 @@ export const useMobilityStore = create<MobilityState>((set, get, api) => ({
       activeParking: INITIAL_ACTIVE_PARKING,
       dlbMode: 'NORMAL',
       chargingScheduleApplied: false,
+      chargingScheduleGeneratedAt: '08:00–10:30',
+      chargingScheduleOptimized: false,
+      overdueVehicles: INITIAL_OVERDUE_VEHICLES,
+      warnedOverduePlates: [],
       dlbActivityLogs: INITIAL_DLB_LOGS,
     });
     if (getStoredAccessToken()) {

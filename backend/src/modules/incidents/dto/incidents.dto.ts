@@ -23,4 +23,11 @@ export class IsolateIncidentDto {
   @IsOptional()
   @IsString()
   assignedCrew?: string;
+
+  @ApiPropertyOptional({
+    example: 'Verify earth leakage relay & test insulation resistance.',
+  })
+  @IsOptional()
+  @IsString()
+  dispatchNotes?: string;
 }
