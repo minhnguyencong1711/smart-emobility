@@ -37,12 +37,19 @@ export class IncidentsService {
       incident.telemetryReading,
     );
 
+    const cleanNotes = dto.dispatchNotes?.trim();
+    const nextDescription =
+      cleanNotes && !incident.description.includes(cleanNotes)
+        ? `${incident.description} [Dispatch Note: ${cleanNotes}]`
+        : incident.description;
+
     const affectedSessions = await this.repo.runTransaction(async (tx) => {
       const updatedIncident = await tx.incident.update({
         where: { id },
         data: {
           status: 'ISOLATED',
           assignedCrew: dto.assignedCrew ?? incident.assignedCrew,
+          description: nextDescription,
         },
       });
 

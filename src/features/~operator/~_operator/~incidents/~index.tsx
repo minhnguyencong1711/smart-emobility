@@ -104,7 +104,7 @@ function IncidentsManagementPage() {
 
   function executeIsolation() {
     if (!isolationTarget) return;
-    isolateIncidentEquipment(isolationTarget.id, assignedCrew);
+    isolateIncidentEquipment(isolationTarget.id, assignedCrew, dispatchNotes);
     setIsolationStep(2);
     pushToast({
       tone: 'ok',

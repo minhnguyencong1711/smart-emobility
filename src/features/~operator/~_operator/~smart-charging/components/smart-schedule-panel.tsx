@@ -3,7 +3,7 @@ import { Badge, Button, Card, StatusPill } from '@/components/ui';
 import type { ChargingQueueEntry } from '@/types';
 import { cn } from '@/utils/cn';
 
-const SCHEDULE_SLOTS = [
+const BASE_SCHEDULE_SLOTS = [
   {
     port: 'Port 1 (AC 7kW)',
     blocks: [
@@ -50,6 +50,57 @@ const SCHEDULE_SLOTS = [
   },
 ];
 
+function buildOptimizedSlots(queue: ChargingQueueEntry[]) {
+  const tier2 = queue.filter((q) => q.tier === 2);
+  const tier3 = queue.filter((q) => q.tier === 3);
+  return [
+    {
+      port: 'Port 1 (AC 7kW)',
+      blocks: [
+        '59A-12445 (Tier 1)',
+        '59A-12346 (Tier 1)',
+        'Available',
+        tier3[0]?.plateNumber ?? 'Tier 3 Routine',
+        'Tier 3 Routine',
+        'Idle',
+      ],
+    },
+    {
+      port: 'Port 2 (AC 7kW)',
+      blocks: [
+        `${tier2[0]?.plateNumber ?? '59A-45907'} (Tier 2)`,
+        'Tier 2 Booked',
+        'XMD-084',
+        tier3[1]?.plateNumber ?? '59A-12046',
+        'Available',
+        'Idle',
+      ],
+    },
+    {
+      port: 'Port 3 (AC 7kW)',
+      blocks: [
+        `${tier2[1]?.plateNumber ?? '59A-78900'} (Critical)`,
+        '58A-34560',
+        '59A-12445',
+        'Available',
+        tier3[2]?.plateNumber ?? '58A-13527',
+        'Idle',
+      ],
+    },
+    {
+      port: 'Port 4 (DC 30kW)',
+      blocks: [
+        'Active Fast (Tier 1)',
+        '59A-46891',
+        'XMD-085',
+        'XMD-086',
+        'Fast Reserve',
+        'Idle',
+      ],
+    },
+  ];
+}
+
 const EXTRA_TIER1 = [
   {
     id: 't1-1',
@@ -70,6 +121,7 @@ export function SmartSchedulePanel({
   tier2Items,
   tier3Items,
   generatedAt,
+  scheduleOptimized,
   chargingScheduleApplied,
   onGenerateSchedule,
   onApplySchedule,
@@ -78,10 +130,14 @@ export function SmartSchedulePanel({
   tier2Items: ChargingQueueEntry[];
   tier3Items: ChargingQueueEntry[];
   generatedAt: string;
+  scheduleOptimized: boolean;
   chargingScheduleApplied: boolean;
   onGenerateSchedule: () => void;
   onApplySchedule: () => void;
 }) {
+  const slots = scheduleOptimized
+    ? buildOptimizedSlots(chargingQueue)
+    : BASE_SCHEDULE_SLOTS;
   return (
     <div className="grid items-start gap-5 lg:grid-cols-12">
       <Card padding="md" className="space-y-4 lg:col-span-4">
@@ -220,7 +276,7 @@ export function SmartSchedulePanel({
               <span>10:00</span>
               <span>10:30</span>
             </div>
-            {SCHEDULE_SLOTS.map((row) => (
+            {slots.map((row) => (
               <div
                 key={row.port}
                 className="grid min-w-[620px] grid-cols-[140px_repeat(6,1fr)] items-center gap-2"

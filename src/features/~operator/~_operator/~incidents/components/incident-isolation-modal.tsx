@@ -140,7 +140,14 @@ export function IncidentIsolationModal({
                 <Button variant="secondary" onClick={() => onStepChange(0)}>
                   Back
                 </Button>
-                <Button variant="danger" onClick={onExecuteIsolation}>
+                <Button
+                  variant="danger"
+                  disabled={
+                    !safetyChecklist.lockConnector ||
+                    !safetyChecklist.notifyAffected
+                  }
+                  onClick={onExecuteIsolation}
+                >
                   Execute Isolation &amp; Dispatch Crew
                 </Button>
               </div>
@@ -151,7 +158,7 @@ export function IncidentIsolationModal({
             <div className="space-y-4">
               <Callout
                 tone="ok"
-                title="Isolation Executed & Dispatch Ticket #TK-2026-104 Issued"
+                title={`Isolation Executed & Dispatch Ticket ${isolationTarget.code.replace('#INC-', '#TK-')} Issued`}
                 description={`${isolationTarget.resourceCode} is now ISOLATED across the hub charger matrix and affected student sessions. Crew ${assignedCrew} has been dispatched.`}
               />
               <div className="flex justify-end">

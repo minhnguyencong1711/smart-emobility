@@ -74,13 +74,24 @@ export const INITIAL_INCIDENTS: IncidentRecord[] = [
 
 export const INITIAL_REDISTRIBUTION_ORDERS: RedistributionOrder[] = [
   {
+    id: 'ro-6767',
+    code: 'ORD-6767',
+    sourceHubId: 'hub-dorm-b',
+    destinationHubId: 'hub-suoi-tien',
+    vehicleCount: 10,
+    reservedDestinationBays: 10,
+    status: 'IN_PROGRESS',
+    assignedCrew: 'Đinh Phạm Ngọc Phước',
+    createdAt: '08:15 AM',
+  },
+  {
     id: 'ro-301',
     code: 'RO-2026-081',
     sourceHubId: 'hub-hcmut-2',
     destinationHubId: 'hub-dorm-b',
     vehicleCount: 5,
     reservedDestinationBays: 5,
-    status: 'IN_PROGRESS',
+    status: 'DISPATCHED',
     assignedCrew: 'Đinh Phạm Ngọc Phước',
     createdAt: '07:50 AM',
   },

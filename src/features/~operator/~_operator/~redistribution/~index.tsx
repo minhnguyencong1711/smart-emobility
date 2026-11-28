@@ -2,18 +2,22 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
 import { PageHeader, SearchBar, Tabs } from '@/components/ui';
+import { isTerminalRedistributionStatus } from '@/services';
 import { useAuthStore, useMobilityStore, useToastStore } from '@/stores';
+import type { RedistributionOrder } from '@/types';
 import { parseVehicleQrCode } from '@/utils/qr-payload';
 
 import { DispatchSpatialPanel } from './components/dispatch-spatial-panel';
 import {
-  TICKET_EV_ITEMS,
+  getTicketEvItemsForOrder,
   WorkTicketPanel,
 } from './components/work-ticket-panel';
 
 export const Route = createFileRoute('/operator/_operator/redistribution/')({
   component: RedistributionPage,
 });
+
+const DEFAULT_VERIFIED_EVS = ['XMD-123', 'XMD-124', 'XMD-128', 'XMD-129'];
 
 function RedistributionPage() {
   const user = useAuthStore((s) => s.user);
@@ -35,13 +39,67 @@ function RedistributionPage() {
   const [vehicleCount, setVehicleCount] = useState(10);
   const [assignedCrew, setAssignedCrew] = useState('Đinh Phạm Ngọc Phước');
 
-  const [verifiedEvs, setVerifiedEvs] = useState<string[]>([
-    'XMD-123',
-    'XMD-124',
-    'XMD-128',
-    'XMD-129',
-  ]);
-  const [ticketStep, setTicketStep] = useState<0 | 1 | 2>(1);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [verifiedByOrderId, setVerifiedByOrderId] = useState<
+    Record<string, string[]>
+  >({});
+  const [stepByOrderId, setStepByOrderId] = useState<Record<string, 0 | 1 | 2>>(
+    {},
+  );
+
+  const activeOrder = useMemo(() => {
+    if (selectedOrderId) {
+      const explicit = redistributionOrders.find(
+        (o) => o.id === selectedOrderId,
+      );
+      if (explicit) return explicit;
+    }
+    return (
+      redistributionOrders.find(
+        (o) => !isTerminalRedistributionStatus(o.status),
+      ) ?? redistributionOrders[0]
+    );
+  }, [redistributionOrders, selectedOrderId]);
+
+  const ticketEvItems = useMemo(
+    () => getTicketEvItemsForOrder(activeOrder?.vehicleCount ?? 10),
+    [activeOrder?.vehicleCount],
+  );
+
+  const isOrderCompleted =
+    activeOrder?.status === 'COMPLETED' ||
+    activeOrder?.status === 'PARTIAL_COMPLETED';
+
+  const verifiedEvs = useMemo(() => {
+    if (!activeOrder) return DEFAULT_VERIFIED_EVS;
+    if (isOrderCompleted) {
+      return ticketEvItems.map((e) => e.code);
+    }
+    const stored = verifiedByOrderId[activeOrder.id];
+    if (stored) return stored;
+    const validCodes = new Set(ticketEvItems.map((e) => e.code));
+    return DEFAULT_VERIFIED_EVS.filter((c) => validCodes.has(c));
+  }, [activeOrder, isOrderCompleted, ticketEvItems, verifiedByOrderId]);
+
+  const ticketStep: 0 | 1 | 2 = isOrderCompleted
+    ? 2
+    : (stepByOrderId[activeOrder?.id ?? ''] ?? 1);
+
+  function setOrderVerifiedEvs(updater: (prev: string[]) => string[]) {
+    if (!activeOrder) return;
+    setVerifiedByOrderId((prev) => ({
+      ...prev,
+      [activeOrder.id]: updater(verifiedEvs),
+    }));
+  }
+
+  function setOrderTicketStep(step: 0 | 1 | 2) {
+    if (!activeOrder) return;
+    setStepByOrderId((prev) => ({
+      ...prev,
+      [activeOrder.id]: step,
+    }));
+  }
 
   const destHub = hubs.find((h) => h.id === destinationHubId) ?? hubs[0];
   const destFreeBays = Math.max(
@@ -79,11 +137,46 @@ function RedistributionPage() {
       });
       return;
     }
+    const newest = useMobilityStore.getState().redistributionOrders[0];
+    if (newest) {
+      setSelectedOrderId(newest.id);
+    }
     pushToast({
       tone: 'ok',
-      title: 'Redistribution Order Dispatched',
+      title: `Order ${newest?.code ?? ''} Dispatched`,
       description: `Reserved ${vehicleCount} inbound bays at ${destHub.shortName} & assigned ${assignedCrew}.`,
     });
+  }
+
+  function handleUpdateOrderStatus(
+    orderId: string,
+    status: RedistributionOrder['status'],
+  ) {
+    const target = redistributionOrders.find((o) => o.id === orderId);
+    if (!target) return;
+    updateRedistributionOrderStatus(orderId, status);
+    const dstName =
+      hubs.find((h) => h.id === target.destinationHubId)?.shortName ??
+      target.destinationHubId;
+    if (status === 'COMPLETED') {
+      pushToast({
+        tone: 'ok',
+        title: `Order ${target.code} Completed`,
+        description: `${target.vehicleCount} EVs transferred to ${dstName} and inbound bay holds released.`,
+      });
+    } else if (status === 'PARTIAL_COMPLETED') {
+      pushToast({
+        tone: 'warn',
+        title: `Order ${target.code} Partially Completed`,
+        description: `Partial EV batch delivered to ${dstName}.`,
+      });
+    } else if (status === 'REROUTED') {
+      pushToast({
+        tone: 'info',
+        title: `Order ${target.code} Re-routed`,
+        description: `Transfer route flagged for alternate hub dispatch.`,
+      });
+    }
   }
 
   return (
@@ -135,65 +228,81 @@ function RedistributionPage() {
             onVehicleCountChange={setVehicleCount}
             onAssignedCrewChange={setAssignedCrew}
             onDispatch={handleDispatch}
-            onUpdateOrderStatus={updateRedistributionOrderStatus}
+            onUpdateOrderStatus={handleUpdateOrderStatus}
+            onOpenWorkTicket={(orderId) => {
+              setSelectedOrderId(orderId);
+              setTab('ticket');
+            }}
           />
         ) : (
           <WorkTicketPanel
+            orders={redistributionOrders}
+            activeOrder={activeOrder}
+            hubs={hubs}
+            ticketEvItems={ticketEvItems}
             ticketStep={ticketStep}
             verifiedEvs={verifiedEvs}
-            onTicketStepChange={setTicketStep}
+            onSelectOrder={setSelectedOrderId}
+            onTicketStepChange={setOrderTicketStep}
             onScanNext={() => {
-              const nextUnverified = TICKET_EV_ITEMS.find(
+              const nextUnverified = ticketEvItems.find(
                 (e) => !verifiedEvs.includes(e.code),
               );
               if (nextUnverified) {
-                setVerifiedEvs((prev) => [...prev, nextUnverified.code]);
+                setOrderVerifiedEvs((prev) => [...prev, nextUnverified.code]);
                 pushToast({
                   tone: 'ok',
                   title: `${nextUnverified.code} Verified`,
-                  description: 'QR scan recorded on Work Ticket.',
+                  description: `QR scan recorded on Work Ticket ${activeOrder.code}.`,
                 });
               } else {
                 pushToast({
                   tone: 'info',
-                  title: 'All 10 EVs already scanned',
+                  title: `All ${ticketEvItems.length} EVs already scanned`,
                 });
               }
             }}
             onScanAll={() => {
-              setVerifiedEvs(TICKET_EV_ITEMS.map((e) => e.code));
+              setOrderVerifiedEvs(() => ticketEvItems.map((e) => e.code));
               pushToast({
                 tone: 'info',
-                title: 'All 10 EVs Verified',
-                description: 'Ready to close Work Ticket ORD-6767.',
+                title: `All ${ticketEvItems.length} EVs Verified`,
+                description: `Ready to close Work Ticket ${activeOrder.code}.`,
               });
             }}
             onCloseTicket={() => {
-              setTicketStep(2);
+              setOrderTicketStep(2);
+              setOrderVerifiedEvs(() => ticketEvItems.map((e) => e.code));
+              updateRedistributionOrderStatus(activeOrder.id, 'COMPLETED');
               pushToast({
                 tone: 'ok',
-                title: 'Work Ticket ORD-6767 Closed',
+                title: `Work Ticket ${activeOrder.code} Closed`,
                 description:
                   'Delivered EVs verified and destination bays updated.',
               });
             }}
-            onVerifySingle={(code) =>
-              setVerifiedEvs((prev) =>
+            onVerifySingle={(code) => {
+              setOrderVerifiedEvs((prev) =>
                 prev.includes(code) ? prev : [...prev, code],
-              )
-            }
+              );
+              pushToast({
+                tone: 'ok',
+                title: `${code} Verified`,
+                description: `QR scan recorded on Work Ticket ${activeOrder.code}.`,
+              });
+            }}
             onScanQrPayload={(rawValue) => {
               const code = parseVehicleQrCode(rawValue);
-              const matched = TICKET_EV_ITEMS.find((e) => e.code === code);
+              const matched = ticketEvItems.find((e) => e.code === code);
               if (!matched) {
                 pushToast({
                   tone: 'danger',
                   title: 'EV QR Not In Work Ticket',
-                  description: `Decoded "${rawValue}" does not belong to ORD-6767.`,
+                  description: `Decoded "${rawValue}" does not belong to ${activeOrder.code}.`,
                 });
                 return;
               }
-              setVerifiedEvs((prev) =>
+              setOrderVerifiedEvs((prev) =>
                 prev.includes(matched.code) ? prev : [...prev, matched.code],
               );
               pushToast({

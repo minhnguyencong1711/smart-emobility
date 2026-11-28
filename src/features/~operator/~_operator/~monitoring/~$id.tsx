@@ -22,7 +22,6 @@ import {
 } from './components/hub-charger-matrix';
 import {
   HubLoadDemandSidebar,
-  OVERDUE_VEHICLES,
   OverdueVehiclesDrawer,
 } from './components/hub-load-sidebar';
 
@@ -30,16 +29,35 @@ export const Route = createFileRoute('/operator/_operator/monitoring/$id')({
   component: HubDetailPage,
 });
 
+const HUB_PORT_PREFIX: Record<string, string> = {
+  'hub-suoi-tien': 'CP-A',
+  'hub-dorm-a': 'CP-KA',
+  'hub-dorm-b': 'CP-B',
+  'hub-hcmut-2': 'CP-BK',
+  'hub-vnu-admin': 'CP-VA',
+};
+
 function HubDetailPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
-  const { hubs, chargingPoints, policyConfig } = useMobilityStore();
+  const {
+    hubs,
+    chargingPoints,
+    activeParking,
+    dlbMode,
+    policyConfig,
+    overdueVehicles,
+    warnedOverduePlates,
+    warnOverdueVehicle,
+    ejectOverdueParkingBay,
+  } = useMobilityStore();
   const pushToast = useToastStore((s) => s.pushToast);
 
   const hub = hubs.find((h) => h.id === id) ?? hubs[1];
   const [spikeMode, setSpikeMode] = useState(false);
   const [overdueDrawerOpen, setOverdueDrawerOpen] = useState(false);
-  const [warnedPlates, setWarnedPlates] = useState<string[]>([]);
+
+  const hubOverdue = overdueVehicles.filter((v) => v.hubId === hub.id);
 
   const cpB04 = chargingPoints.find((cp) => cp.id === 'cp-b04');
   const isB04Isolated = cpB04?.status === 'ISOLATED';
@@ -53,25 +71,88 @@ function HubDetailPage() {
   );
   const sharedPct = Math.round((hub.sharedEvsReady / hub.sharedEvsTotal) * 100);
 
-  const matrixPorts: MatrixPort[] = [
-    { code: 'CP-B01', spec: 'DC 30kW', kw: 24.5, status: 'CHARGING', soc: 82 },
-    { code: 'CP-B02', spec: 'DC 30kW', kw: 28.1, status: 'CHARGING', soc: 45 },
-    { code: 'CP-B03', spec: 'DC 30kW', kw: 14.0, status: 'THROTTLED' },
-    {
-      code: 'CP-B04',
-      spec: isB04Isolated ? 'ISOLATED' : 'GROUND FAULT',
-      kw: 0.0,
-      status: isB04Isolated ? 'ISOLATED' : 'FAULT',
+  const prefix = HUB_PORT_PREFIX[hub.id] ?? 'CP-X';
+  const totalMatrixPorts = Math.min(12, Math.max(6, hub.chargerPortsTotal));
+  const hubStoredPorts = chargingPoints.filter((cp) => cp.hubId === hub.id);
+
+  const matrixPorts: MatrixPort[] = Array.from(
+    { length: totalMatrixPorts },
+    (_, idx) => {
+      const numStr = String(idx + 1).padStart(2, '0');
+      const code = `${prefix}${numStr}`;
+      const matchedStored =
+        hubStoredPorts.find((cp) => cp.code === code) ?? hubStoredPorts[idx];
+
+      if (matchedStored) {
+        const mappedStatus: MatrixPort['status'] =
+          matchedStored.status === 'ISOLATED'
+            ? 'ISOLATED'
+            : matchedStored.status === 'FAULTY'
+              ? 'FAULT'
+              : matchedStored.status === 'THROTTLED'
+                ? 'THROTTLED'
+                : matchedStored.status === 'CHARGING'
+                  ? 'CHARGING'
+                  : 'IDLE';
+        const isDlbThrottled =
+          dlbMode === 'CRITICAL' && mappedStatus === 'CHARGING';
+        return {
+          code: matchedStored.code,
+          spec:
+            mappedStatus === 'ISOLATED'
+              ? 'ISOLATED'
+              : mappedStatus === 'FAULT'
+                ? 'GROUND FAULT'
+                : matchedStored.connectorType === 'DC_FAST'
+                  ? 'DC 30kW'
+                  : 'AC 7kW',
+          kw: isDlbThrottled ? 3.5 : matchedStored.currentPowerKw,
+          status: isDlbThrottled ? 'THROTTLED' : mappedStatus,
+          soc: mappedStatus === 'CHARGING' ? 72 : undefined,
+        };
+      }
+
+      if (
+        activeParking &&
+        activeParking.hubId === hub.id &&
+        activeParking.chargingPortCode === code
+      ) {
+        const isCharging = activeParking.chargingStatus === 'CHARGING';
+        const isThrottled = activeParking.chargingStatus === 'THROTTLED';
+        const isInterrupted = activeParking.chargingStatus === 'INTERRUPTED';
+        return {
+          code,
+          spec:
+            activeParking.connectorType === 'DC_FAST' ? 'DC 30kW' : 'AC 7kW',
+          kw: activeParking.currentKw,
+          status: isInterrupted
+            ? 'ISOLATED'
+            : isThrottled
+              ? 'THROTTLED'
+              : isCharging
+                ? 'CHARGING'
+                : 'IDLE',
+          soc: activeParking.socPercent,
+        };
+      }
+
+      const isActiveSlot = idx < hub.chargerPortsActive;
+      const isDc = idx < 3;
+      const isThrottled =
+        isActiveSlot &&
+        !isDc &&
+        (spikeMode || dlbMode === 'CRITICAL' || gridPct >= 85) &&
+        idx % 2 === 0;
+
+      return {
+        code,
+        spec: isDc ? 'DC 30kW' : 'AC 7kW',
+        kw: !isActiveSlot ? 0.0 : isThrottled ? 3.5 : isDc ? 26.4 : 6.9,
+        status: !isActiveSlot ? 'IDLE' : isThrottled ? 'THROTTLED' : 'CHARGING',
+        soc: isActiveSlot ? 40 + ((idx * 13) % 52) : undefined,
+      };
     },
-    { code: 'CP-B05', spec: 'AC 7kW', kw: 6.8, status: 'CHARGING', soc: 91 },
-    { code: 'CP-B06', spec: 'AC 7kW', kw: 7.0, status: 'CHARGING', soc: 60 },
-    { code: 'CP-B07', spec: 'AC 7kW', kw: 0.0, status: 'IDLE' },
-    { code: 'CP-B08', spec: 'AC 7kW', kw: 6.9, status: 'CHARGING', soc: 33 },
-    { code: 'CP-B09', spec: 'AC 7kW', kw: 4.2, status: 'THROTTLED' },
-    { code: 'CP-B10', spec: 'AC 7kW', kw: 0.0, status: 'IDLE' },
-    { code: 'CP-B11', spec: 'AC 7kW', kw: 7.1, status: 'CHARGING', soc: 75 },
-    { code: 'CP-B12', spec: 'AC 7kW', kw: 6.6, status: 'CHARGING', soc: 89 },
-  ];
+  );
 
   return (
     <div className="flex flex-col">
@@ -138,7 +219,7 @@ function HubDetailPage() {
             variant="secondary"
             onClick={() => setOverdueDrawerOpen(true)}
           >
-            Overdue Vehicles ({OVERDUE_VEHICLES.length})
+            Overdue Vehicles ({hubOverdue.length})
           </Button>
         </div>
 
@@ -204,6 +285,8 @@ function HubDetailPage() {
             onInspectFault={() => navigate({ to: '/operator/incidents' })}
           />
           <HubLoadDemandSidebar
+            hubId={hub.id}
+            overdueCount={hubOverdue.length}
             currentKw={currentKw}
             gridPct={gridPct}
             spikeMode={spikeMode}
@@ -217,14 +300,23 @@ function HubDetailPage() {
       <OverdueVehiclesDrawer
         open={overdueDrawerOpen}
         hub={hub}
-        warnedPlates={warnedPlates}
+        overdueVehicles={hubOverdue}
+        warnedPlates={warnedOverduePlates}
         onClose={() => setOverdueDrawerOpen(false)}
         onSendWarning={(plate, owner) => {
-          setWarnedPlates((prev) => [...prev, plate]);
+          warnOverdueVehicle(plate);
           pushToast({
             tone: 'info',
             title: `Warning sent to ${owner}`,
             description: `Overdue notice dispatched for ${plate}.`,
+          });
+        }}
+        onEjectBay={(plate, bay) => {
+          ejectOverdueParkingBay(hub.id, plate);
+          pushToast({
+            tone: 'ok',
+            title: `Bay ${bay} Released`,
+            description: `Ejected overdue vehicle ${plate} and freed 1 parking bay at ${hub.shortName}.`,
           });
         }}
       />

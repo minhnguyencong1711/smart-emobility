@@ -5,19 +5,89 @@ import type {
   IncidentRecord,
   MobilityHub,
   RedistributionOrder,
+  RedistributionStatus,
   SimulationScenario,
 } from '@/types';
+
+const TERMINAL_ORDER_STATUSES: RedistributionStatus[] = [
+  'COMPLETED',
+  'PARTIAL_COMPLETED',
+  'CANCELLED',
+];
+
+export function isTerminalRedistributionStatus(
+  status: RedistributionStatus,
+): boolean {
+  return TERMINAL_ORDER_STATUSES.includes(status);
+}
+
+export function applyRedistributionOrdersToHubs(
+  baseHubs: MobilityHub[],
+  orders: RedistributionOrder[],
+  baselineOrderIds: string[] = ['ro-6767', 'ro-301'],
+): MobilityHub[] {
+  const inboundDeltaByHub: Record<string, number> = {};
+  const readyDeltaByHub: Record<string, number> = {};
+
+  for (const order of orders) {
+    const isBaseline = baselineOrderIds.includes(order.id);
+    const isTerminal = isTerminalRedistributionStatus(order.status);
+
+    if (!isBaseline && !isTerminal) {
+      inboundDeltaByHub[order.destinationHubId] =
+        (inboundDeltaByHub[order.destinationHubId] ?? 0) +
+        order.reservedDestinationBays;
+    }
+
+    if (isBaseline && isTerminal) {
+      inboundDeltaByHub[order.destinationHubId] =
+        (inboundDeltaByHub[order.destinationHubId] ?? 0) -
+        order.reservedDestinationBays;
+    }
+
+    if (order.status === 'COMPLETED' || order.status === 'PARTIAL_COMPLETED') {
+      const deliveredCount =
+        order.status === 'PARTIAL_COMPLETED'
+          ? Math.max(1, Math.ceil(order.vehicleCount / 2))
+          : order.vehicleCount;
+
+      readyDeltaByHub[order.destinationHubId] =
+        (readyDeltaByHub[order.destinationHubId] ?? 0) + deliveredCount;
+      readyDeltaByHub[order.sourceHubId] =
+        (readyDeltaByHub[order.sourceHubId] ?? 0) - deliveredCount;
+    }
+  }
+
+  return baseHubs.map((hub) => {
+    const inboundDelta = inboundDeltaByHub[hub.id] ?? 0;
+    const readyDelta = readyDeltaByHub[hub.id] ?? 0;
+    if (inboundDelta === 0 && readyDelta === 0) return hub;
+    return {
+      ...hub,
+      reservedInboundBays: Math.max(0, hub.reservedInboundBays + inboundDelta),
+      sharedEvsReady: Math.max(0, hub.sharedEvsReady + readyDelta),
+    };
+  });
+}
 
 export function applyIncidentIsolation(params: {
   incidentId: string;
   assignedCrew?: string;
+  dispatchNotes?: string;
   incidents: IncidentRecord[];
   chargingPoints: ChargingPoint[];
   activeParking: ActiveParkingAndCharging | null;
 }) {
-  const { incidentId, assignedCrew, incidents, chargingPoints, activeParking } =
-    params;
+  const {
+    incidentId,
+    assignedCrew,
+    dispatchNotes,
+    incidents,
+    chargingPoints,
+    activeParking,
+  } = params;
   const target = incidents.find((inc) => inc.id === incidentId);
+  const cleanNotes = dispatchNotes?.trim();
   const isActivePortAffected =
     target &&
     activeParking &&
@@ -30,6 +100,9 @@ export function applyIncidentIsolation(params: {
             ...inc,
             status: 'ISOLATED' as const,
             assignedCrew: assignedCrew ?? inc.assignedCrew,
+            description: cleanNotes
+              ? `${inc.description} [Dispatch Note: ${cleanNotes}]`
+              : inc.description,
           }
         : inc,
     ),
@@ -76,12 +149,19 @@ export function applyRedistributionHubTransfers(params: {
   hubs: MobilityHub[];
 }): MobilityHub[] {
   const { order, status, hubs } = params;
-  const isFinishing =
-    status === 'COMPLETED' ||
-    status === 'PARTIAL_COMPLETED' ||
-    status === 'CANCELLED';
+  if (!order) return hubs;
 
-  if (!order || !isFinishing) return hubs;
+  if (
+    isTerminalRedistributionStatus(order.status) ||
+    !isTerminalRedistributionStatus(status)
+  ) {
+    return hubs;
+  }
+
+  const deliveredCount =
+    status === 'PARTIAL_COMPLETED'
+      ? Math.max(1, Math.ceil(order.vehicleCount / 2))
+      : order.vehicleCount;
 
   return hubs.map((h) => {
     if (h.id === order.destinationHubId) {
@@ -94,13 +174,13 @@ export function applyRedistributionHubTransfers(params: {
         sharedEvsReady:
           status === 'CANCELLED'
             ? h.sharedEvsReady
-            : h.sharedEvsReady + order.vehicleCount,
+            : h.sharedEvsReady + deliveredCount,
       };
     }
     if (h.id === order.sourceHubId && status !== 'CANCELLED') {
       return {
         ...h,
-        sharedEvsReady: Math.max(0, h.sharedEvsReady - order.vehicleCount),
+        sharedEvsReady: Math.max(0, h.sharedEvsReady - deliveredCount),
       };
     }
     return h;
@@ -113,32 +193,50 @@ export function applySimulationAdvisoryApproval(params: {
   simulations: SimulationScenario[];
   redistributionOrders: RedistributionOrder[];
   dlbActivityLogs: DlbLogEntry[];
+  hubs?: MobilityHub[];
 }) {
-  const { simId, recId, simulations, redistributionOrders, dlbActivityLogs } =
-    params;
+  const {
+    simId,
+    recId,
+    simulations,
+    redistributionOrders,
+    dlbActivityLogs,
+    hubs,
+  } = params;
   const sim = simulations.find((s) => s.id === simId);
   const rec = sim?.recommendations.find((r) => r.id === recId);
 
-  const nextOrders =
-    rec?.targetType === 'REDISTRIBUTION'
-      ? [
-          {
-            id: `ro-sim-${Date.now()}`,
-            code: `ORD-SIM-${Math.floor(100 + Math.random() * 899)}`,
-            sourceHubId: 'hub-dorm-b',
-            destinationHubId: 'hub-suoi-tien',
-            vehicleCount: 8,
-            reservedDestinationBays: 8,
-            status: 'DISPATCHED' as const,
-            assignedCrew: 'Đinh Phạm Ngọc Phước',
-            createdAt: 'From Simulation Advisory',
-          },
-          ...redistributionOrders,
-        ]
-      : redistributionOrders;
+  const isRedistributionRec =
+    rec?.targetType === 'REDISTRIBUTION' && !rec.approvedToM4;
+
+  const nextOrders = isRedistributionRec
+    ? [
+        {
+          id: `ro-sim-${Date.now()}`,
+          code: `ORD-SIM-${Math.floor(100 + Math.random() * 899)}`,
+          sourceHubId: 'hub-dorm-b',
+          destinationHubId: 'hub-suoi-tien',
+          vehicleCount: 8,
+          reservedDestinationBays: 8,
+          status: 'DISPATCHED' as const,
+          assignedCrew: 'Đinh Phạm Ngọc Phước',
+          createdAt: 'From Simulation Advisory',
+        },
+        ...redistributionOrders,
+      ]
+    : redistributionOrders;
+
+  const nextHubs =
+    isRedistributionRec && hubs
+      ? hubs.map((h) =>
+          h.id === 'hub-suoi-tien'
+            ? { ...h, reservedInboundBays: h.reservedInboundBays + 8 }
+            : h,
+        )
+      : hubs;
 
   const nextLogs =
-    rec?.targetType === 'SCHEDULING'
+    rec?.targetType === 'SCHEDULING' && !rec.approvedToM4
       ? [
           {
             id: `dlb-m5-${Date.now()}`,
@@ -163,5 +261,6 @@ export function applySimulationAdvisoryApproval(params: {
     ),
     redistributionOrders: nextOrders,
     dlbActivityLogs: nextLogs,
+    ...(nextHubs ? { hubs: nextHubs } : {}),
   };
 }

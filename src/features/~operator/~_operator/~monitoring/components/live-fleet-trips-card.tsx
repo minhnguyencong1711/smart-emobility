@@ -1,17 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { BikeIcon, ClockIcon, RefreshIcon } from '@/components/icons';
 import { Badge, Button, Card, StatusPill } from '@/components/ui';
 import { useInterval } from '@/hooks';
 import { backendApi, getStoredAccessToken } from '@/services';
-import { useMobilityStore } from '@/stores';
+import { useAuthStore, useMobilityStore } from '@/stores';
 import type { LiveFleetRental } from '@/types';
 import { formatElapsedClock } from '@/utils/date-time';
 import { formatClockSeconds } from '@/utils/formatters';
 
 export function LiveFleetTripsCard() {
   const backendMode = useMobilityStore((s) => s.backendMode);
-  const [liveRentals, setLiveRentals] = useState<LiveFleetRental[]>([]);
+  const activeVehicleHold = useMobilityStore((s) => s.activeVehicleHold);
+  const sharedVehicles = useMobilityStore((s) => s.sharedVehicles);
+  const hubs = useMobilityStore((s) => s.hubs);
+  const user = useAuthStore((s) => s.user);
+  const [backendRentals, setBackendRentals] = useState<LiveFleetRental[]>([]);
   const [loading, setLoading] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -20,7 +24,7 @@ export function LiveFleetTripsCard() {
     setLoading(true);
     try {
       const items = await backendApi.getLiveFleetRentals();
-      setLiveRentals(items);
+      setBackendRentals(items);
     } catch {
       // Offline fallback or non-operator role: keep current list silent
     } finally {
@@ -35,6 +39,43 @@ export function LiveFleetTripsCard() {
   }, [backendMode, fetchLive]);
 
   useInterval(() => void fetchLive(), backendMode === 'online' ? 5000 : null);
+
+  const liveRentals = useMemo(() => {
+    if (backendRentals.length > 0) return backendRentals;
+    if (
+      activeVehicleHold &&
+      (activeVehicleHold.status === 'CONFIRMED' ||
+        activeVehicleHold.status === 'ACTIVE_TRIP')
+    ) {
+      const vehicle = sharedVehicles.find(
+        (v) => v.id === activeVehicleHold.vehicleId,
+      );
+      const hub = hubs.find((h) => h.id === activeVehicleHold.hubId);
+      return [
+        {
+          id: activeVehicleHold.reservationId,
+          reservationId: activeVehicleHold.reservationId,
+          tripId: activeVehicleHold.tripId,
+          status: activeVehicleHold.status,
+          vehicleId: activeVehicleHold.vehicleId,
+          vehicleCode: vehicle?.code ?? activeVehicleHold.vehicleId,
+          vehicleModel: vehicle?.model ?? 'Shared EV',
+          vehicleType: vehicle?.type ?? 'E_BIKE',
+          batterySoC: vehicle?.batterySoC ?? 80,
+          riderName: user.fullName,
+          riderEmail: user.email,
+          originHubId: activeVehicleHold.hubId,
+          originHubName: hub?.shortName ?? activeVehicleHold.hubId,
+          startedAt: activeVehicleHold.startedAt,
+          startedAtIso: activeVehicleHold.startedAtIso,
+          remainingSeconds: activeVehicleHold.remainingSeconds,
+          elapsedSeconds: activeVehicleHold.elapsedSeconds,
+        } satisfies LiveFleetRental,
+      ];
+    }
+    return [];
+  }, [backendRentals, activeVehicleHold, sharedVehicles, hubs, user]);
+
   useInterval(() => setNowMs(Date.now()), liveRentals.length > 0 ? 1000 : null);
 
   return (

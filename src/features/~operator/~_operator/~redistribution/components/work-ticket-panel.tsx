@@ -7,13 +7,21 @@ import {
   Button,
   Card,
   Pagination,
+  Select,
   StatusPill,
   StepNav,
 } from '@/components/ui';
 import { usePagination } from '@/hooks';
+import type { MobilityHub, RedistributionOrder } from '@/types';
 import { buildWorkTicketQrPayload } from '@/utils/qr-payload';
 
-export const TICKET_EV_ITEMS = [
+export type TicketEvItem = {
+  code: string;
+  soc: number;
+  status: 'AVAILABLE' | 'OUT_OF_SERVICE' | 'CHARGING_QUEUE';
+};
+
+export const TICKET_EV_ITEMS: TicketEvItem[] = [
   { code: 'XMD-123', soc: 78, status: 'AVAILABLE' },
   { code: 'XMD-124', soc: 80, status: 'AVAILABLE' },
   { code: 'XMD-125', soc: 50, status: 'OUT_OF_SERVICE' },
@@ -24,11 +32,26 @@ export const TICKET_EV_ITEMS = [
   { code: 'XMD-130', soc: 66, status: 'AVAILABLE' },
   { code: 'XMD-131', soc: 74, status: 'AVAILABLE' },
   { code: 'XMD-132', soc: 88, status: 'AVAILABLE' },
+  { code: 'XMD-133', soc: 81, status: 'AVAILABLE' },
+  { code: 'XMD-134', soc: 76, status: 'AVAILABLE' },
+  { code: 'XMD-135', soc: 84, status: 'AVAILABLE' },
+  { code: 'XMD-136', soc: 69, status: 'AVAILABLE' },
+  { code: 'XMD-137', soc: 90, status: 'AVAILABLE' },
 ];
 
+export function getTicketEvItemsForOrder(vehicleCount = 10): TicketEvItem[] {
+  const count = Math.max(1, Math.min(TICKET_EV_ITEMS.length, vehicleCount));
+  return TICKET_EV_ITEMS.slice(0, count);
+}
+
 export function WorkTicketPanel({
+  orders,
+  activeOrder,
+  hubs,
+  ticketEvItems,
   ticketStep,
   verifiedEvs,
+  onSelectOrder,
   onTicketStepChange,
   onScanNext,
   onScanAll,
@@ -37,8 +60,13 @@ export function WorkTicketPanel({
   onScanQrPayload,
   onReportStatus,
 }: {
+  orders: RedistributionOrder[];
+  activeOrder: RedistributionOrder;
+  hubs: MobilityHub[];
+  ticketEvItems: TicketEvItem[];
   ticketStep: 0 | 1 | 2;
   verifiedEvs: string[];
+  onSelectOrder: (orderId: string) => void;
   onTicketStepChange: (step: 0 | 1 | 2) => void;
   onScanNext: () => void;
   onScanAll: () => void;
@@ -48,38 +76,77 @@ export function WorkTicketPanel({
   onReportStatus: (code: string, status: string, soc: number) => void;
 }) {
   const { page, totalPages, totalItems, pageItems, setPage } = usePagination(
-    TICKET_EV_ITEMS,
+    ticketEvItems,
     5,
   );
   const [scannerOpen, setScannerOpen] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
 
+  const sourceHub = hubs.find((h) => h.id === activeOrder.sourceHubId);
+  const destHub = hubs.find((h) => h.id === activeOrder.destinationHubId);
+  const sourceCode = sourceHub?.code ?? 'HUB-KB03';
+  const destCode = destHub?.code ?? 'HUB-ST01';
+  const routeLabel = `${sourceHub?.shortName ?? 'Dormitory Zone B'} → ${destHub?.shortName ?? 'Suoi Tien Metro Station'}`;
+  const isCompleted =
+    ticketStep === 2 ||
+    activeOrder.status === 'COMPLETED' ||
+    activeOrder.status === 'PARTIAL_COMPLETED';
+
   const ticketQrPayload = buildWorkTicketQrPayload({
-    orderCode: 'ORD-6767',
-    route: 'HUB-KB03->HUB-ST01',
-    count: TICKET_EV_ITEMS.length,
+    orderCode: activeOrder.code,
+    route: `${sourceCode}->${destCode}`,
+    count: ticketEvItems.length,
   });
 
   return (
     <div className="space-y-5">
       <Card padding="md" className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-title font-extrabold text-ink">
-              Order Code: ORD-6767
+              Order Code: {activeOrder.code}
             </h2>
-            <Badge tone="primary">
-              {ticketStep === 2 ? 'Completed' : 'Delivering'}
+            <Badge tone={isCompleted ? 'ok' : 'primary'}>
+              {isCompleted ? 'Completed' : 'Delivering'}
             </Badge>
           </div>
-          <span className="text-caption font-semibold text-ink-3">
-            Dormitory Zone B → Suoi Tien Metro Station
-          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-caption font-semibold text-ink-3">
+              {routeLabel} · Crew: {activeOrder.assignedCrew}
+            </span>
+            {orders.length > 1 ? (
+              <Select
+                aria-label="Select work ticket order"
+                value={activeOrder.id}
+                onChange={(e) => {
+                  onSelectOrder(e.target.value);
+                  setPage(1);
+                }}
+                options={orders.map((o) => {
+                  const src =
+                    hubs.find((h) => h.id === o.sourceHubId)?.shortName ??
+                    o.sourceHubId;
+                  const dst =
+                    hubs.find((h) => h.id === o.destinationHubId)?.shortName ??
+                    o.destinationHubId;
+                  return {
+                    value: o.id,
+                    label: `${o.code}: ${src} → ${dst} (${o.vehicleCount} EVs · ${o.status})`,
+                  };
+                })}
+                className="w-72"
+              />
+            ) : null}
+          </div>
         </div>
 
         <StepNav
-          currentStepIndex={ticketStep}
-          onStepClick={(idx) => onTicketStepChange(idx as 0 | 1 | 2)}
+          currentStepIndex={isCompleted ? 2 : ticketStep}
+          onStepClick={(idx) => {
+            if (!isCompleted && idx <= 1) {
+              onTicketStepChange(idx as 0 | 1);
+            }
+          }}
           steps={[
             { id: 'assigned', label: 'ASSIGNED' },
             { id: 'picked', label: 'PICKED UP' },
@@ -97,8 +164,8 @@ export function WorkTicketPanel({
             <h3 className="text-body-lg font-extrabold text-ink">
               Work Ticket
             </h3>
-            <Badge tone="navy">
-              {verifiedEvs.length} / {TICKET_EV_ITEMS.length} Scanned
+            <Badge tone={isCompleted ? 'ok' : 'navy'}>
+              {verifiedEvs.length} / {ticketEvItems.length} Scanned
             </Badge>
           </div>
 
@@ -115,9 +182,9 @@ export function WorkTicketPanel({
             <QrCodeCard
               value={ticketQrPayload}
               size={156}
-              caption="ORD-6767 · HUB-KB03 → HUB-ST01"
+              caption={`${activeOrder.code} · ${sourceCode} → ${destCode}`}
               downloadable
-              downloadFileName="ORD-6767-ticket.png"
+              downloadFileName={`${activeOrder.code}-ticket.png`}
             />
           )}
 
@@ -134,21 +201,35 @@ export function WorkTicketPanel({
               {scannerOpen ? 'Show Work Ticket QR' : 'Open Live QR Scanner'}
             </Button>
 
-            <Button variant="secondary" fullWidth onClick={onScanNext}>
+            <Button
+              variant="secondary"
+              fullWidth
+              disabled={isCompleted}
+              onClick={onScanNext}
+            >
               Verify Next Unscanned EV
             </Button>
 
-            <Button variant="secondary" fullWidth onClick={onScanAll}>
+            <Button
+              variant="secondary"
+              fullWidth
+              disabled={
+                isCompleted || verifiedEvs.length >= ticketEvItems.length
+              }
+              onClick={onScanAll}
+            >
               Scan All EV to Close Ticket
             </Button>
 
             <Button
-              variant="primary"
+              variant={isCompleted ? 'secondary' : 'primary'}
               fullWidth
-              disabled={verifiedEvs.length < TICKET_EV_ITEMS.length}
+              disabled={
+                isCompleted || verifiedEvs.length < ticketEvItems.length
+              }
               onClick={onCloseTicket}
             >
-              Close Work Ticket
+              {isCompleted ? 'Work Ticket Closed' : 'Close Work Ticket'}
             </Button>
           </div>
         </Card>
@@ -163,7 +244,7 @@ export function WorkTicketPanel({
                 Scanned Vehicle List
               </h3>
               <span className="font-mono text-body-sm font-bold text-primary-700">
-                {verifiedEvs.length} / {TICKET_EV_ITEMS.length}
+                {verifiedEvs.length} / {ticketEvItems.length}
               </span>
             </div>
 
@@ -208,6 +289,7 @@ export function WorkTicketPanel({
                         <Button
                           size="sm"
                           variant="secondary"
+                          disabled={isCompleted}
                           onClick={() => onVerifySingle(ev.code)}
                         >
                           Verify QR

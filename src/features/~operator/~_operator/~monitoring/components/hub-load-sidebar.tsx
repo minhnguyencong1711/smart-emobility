@@ -1,24 +1,12 @@
 import { Link } from '@tanstack/react-router';
 
 import { Badge, Button, Callout, Card, Drawer } from '@/components/ui';
+import type { OverdueVehicleRecord } from '@/stores/mobility/types';
 import type { MobilityHub, SystemPolicyConfig } from '@/types';
 
-export const OVERDUE_VEHICLES = [
-  {
-    plate: '59A-412.88',
-    bay: 'BAY-B02',
-    owner: 'Tran Minh Khoa',
-    overdueMins: 42,
-  },
-  {
-    plate: '51H-904.11',
-    bay: 'BAY-B07',
-    owner: 'Le Hoang Nam',
-    overdueMins: 28,
-  },
-];
-
 export function HubLoadDemandSidebar({
+  hubId,
+  overdueCount,
   currentKw,
   gridPct,
   spikeMode,
@@ -26,6 +14,8 @@ export function HubLoadDemandSidebar({
   policyConfig,
   onOpenOverdueDrawer,
 }: {
+  hubId: string;
+  overdueCount: number;
   currentKw: number;
   gridPct: number;
   spikeMode: boolean;
@@ -118,20 +108,31 @@ export function HubLoadDemandSidebar({
         </h3>
         <div className="space-y-2">
           <Button variant="secondary" fullWidth onClick={onOpenOverdueDrawer}>
-            Review &amp; Eject Overdue EVs ({OVERDUE_VEHICLES.length}) →
+            Review &amp; Eject Overdue EVs ({overdueCount}) →
           </Button>
           <Link to="/operator/redistribution" className="block">
             <Button variant="secondary" fullWidth>
               Request EVs Transfer →
             </Button>
           </Link>
-          <Link to="/operator/incidents" className="block">
-            <Button variant={isB04Isolated ? 'secondary' : 'danger'} fullWidth>
-              {isB04Isolated
-                ? 'Port CP-B04 Isolated (View Queue)'
-                : 'Isolate Faulty Port CP-B04 (1 Alert) →'}
-            </Button>
-          </Link>
+          {hubId === 'hub-dorm-b' ? (
+            <Link to="/operator/incidents" className="block">
+              <Button
+                variant={isB04Isolated ? 'secondary' : 'danger'}
+                fullWidth
+              >
+                {isB04Isolated
+                  ? 'Port CP-B04 Isolated (View Queue)'
+                  : 'Isolate Faulty Port CP-B04 (1 Alert) →'}
+              </Button>
+            </Link>
+          ) : (
+            <Link to="/operator/incidents" className="block">
+              <Button variant="secondary" fullWidth>
+                Inspect Hub Incident Queue →
+              </Button>
+            </Link>
+          )}
         </div>
       </Card>
     </div>
@@ -141,15 +142,19 @@ export function HubLoadDemandSidebar({
 export function OverdueVehiclesDrawer({
   open,
   hub,
+  overdueVehicles,
   warnedPlates,
   onClose,
   onSendWarning,
+  onEjectBay,
 }: {
   open: boolean;
   hub: MobilityHub;
+  overdueVehicles: OverdueVehicleRecord[];
   warnedPlates: string[];
   onClose: () => void;
   onSendWarning: (plate: string, owner: string) => void;
+  onEjectBay: (plate: string, bay: string) => void;
 }) {
   return (
     <Drawer
@@ -167,28 +172,45 @@ export function OverdueVehiclesDrawer({
           title="Grace / Duration Exceeded"
           description="Vehicles below have exceeded their booked parking duration. Send push warning or release bay."
         />
-        {OVERDUE_VEHICLES.map((item) => {
-          const warned = warnedPlates.includes(item.plate);
-          return (
-            <Card key={item.plate} padding="sm" className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-body-sm font-bold text-ink">
-                  {item.plate} · {item.bay}
-                </span>
-                <Badge tone="danger">+{item.overdueMins}m overdue</Badge>
-              </div>
-              <p className="text-caption text-ink-2">Owner: {item.owner}</p>
-              <Button
-                size="sm"
-                variant={warned ? 'secondary' : 'primary'}
-                disabled={warned}
-                onClick={() => onSendWarning(item.plate, item.owner)}
-              >
-                {warned ? 'Warning Sent' : 'Send Push Warning'}
-              </Button>
-            </Card>
-          );
-        })}
+        {overdueVehicles.length === 0 ? (
+          <Card padding="sm">
+            <p className="text-body-sm text-ink-2">
+              No overdue vehicles currently occupying bays at {hub.shortName}.
+            </p>
+          </Card>
+        ) : (
+          overdueVehicles.map((item) => {
+            const warned = warnedPlates.includes(item.plate);
+            return (
+              <Card key={item.plate} padding="sm" className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-body-sm font-bold text-ink">
+                    {item.plate} · {item.bay}
+                  </span>
+                  <Badge tone="danger">+{item.overdueMins}m overdue</Badge>
+                </div>
+                <p className="text-caption text-ink-2">Owner: {item.owner}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant={warned ? 'secondary' : 'primary'}
+                    disabled={warned}
+                    onClick={() => onSendWarning(item.plate, item.owner)}
+                  >
+                    {warned ? 'Warning Sent' : 'Send Push Warning'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => onEjectBay(item.plate, item.bay)}
+                  >
+                    Release Bay &amp; Eject
+                  </Button>
+                </div>
+              </Card>
+            );
+          })
+        )}
       </div>
     </Drawer>
   );
