@@ -17,7 +17,7 @@ export class RentalsRepository {
     return this.prisma.vehicleRental.findFirst({
       where: {
         userId,
-        status: { in: ['CONFIRMED', 'ACTIVE_TRIP', 'EXPIRED'] },
+        status: { in: ['CONFIRMED', 'ACTIVE_TRIP'] },
       },
       orderBy: { createdAt: 'desc' },
     });
