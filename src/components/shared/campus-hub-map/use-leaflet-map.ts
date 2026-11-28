@@ -97,6 +97,8 @@ export function useLeafletMap({
       zoomControl: false,
       attributionControl: true,
       scrollWheelZoom: !isMini,
+      zoomAnimation: false,
+      fadeAnimation: false,
     });
 
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -127,6 +129,7 @@ export function useLeafletMap({
     let lastDefaultZoom = initialZoom;
 
     const handleResize = () => {
+      if (!el.isConnected || !mapRef.current) return;
       const w = el.clientWidth;
       const h = el.clientHeight;
       const compact = w < 500 || h < 420;
@@ -153,6 +156,7 @@ export function useLeafletMap({
 
     return () => {
       ro.disconnect();
+      map.stop();
       map.remove();
       mapRef.current = null;
       layerGroupRef.current = null;
@@ -171,13 +175,13 @@ export function useLeafletMap({
             [from.lat, from.lng],
             [to.lat, to.lng],
           ]),
-          { padding: [36, 48], maxZoom: 15 },
+          { padding: [36, 48], maxZoom: 15, animate: false },
         );
         return;
       }
     }
     if (focusedHub) {
-      map.setView([focusedHub.lat, focusedHub.lng], 16, { animate: true });
+      map.setView([focusedHub.lat, focusedHub.lng], 16, { animate: false });
     }
   }, [focusedHub, hubs, isMini, resolvedRoute]);
 

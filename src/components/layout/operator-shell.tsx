@@ -192,6 +192,7 @@ export function OperatorShell({ children }: { children: ReactNode }) {
           });
         }}
         onApplyPolicy={() => {
+          updatePolicyConfig(policyConfig);
           setPolicyModalOpen(false);
           pushToast({
             tone: 'ok',
