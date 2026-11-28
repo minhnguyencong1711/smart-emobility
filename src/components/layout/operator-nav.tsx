@@ -4,7 +4,6 @@ import {
   ActivityIcon,
   AlertTriangleIcon,
   BarChartIcon,
-  BikeIcon,
   BoltIcon,
   ChargingStationIcon,
   FlaskIcon,
@@ -65,15 +64,8 @@ export function buildOperatorNavGroups(
       ],
     },
     {
-      title: 'FLEET & MOBILITY',
+      title: 'GRID & LOGISTICS',
       items: [
-        {
-          id: 'rental-service',
-          label: 'Vehicle Rental Service',
-          to: '/student/vehicles',
-          icon: <BikeIcon size={17} />,
-          isActive: (p) => p.startsWith('/student/vehicles'),
-        },
         {
           id: 'charging-reservations',
           label: 'Charging Reservations',
@@ -83,11 +75,6 @@ export function buildOperatorNavGroups(
           isActive: (p, s) =>
             p === '/operator/smart-charging' && s.includes('tab=schedule'),
         },
-      ],
-    },
-    {
-      title: 'GRID & LOGISTICS',
-      items: [
         {
           id: 'smart-grid',
           label: 'Smart Grid & DLB',
